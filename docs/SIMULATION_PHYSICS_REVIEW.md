@@ -51,3 +51,66 @@ Effort should not be spent on temperature-dependent air and water density at thi
 ## Bottom Line
 
 The proposed architecture is not naive, but the claim should be modified from a real sailboat dynamics model whose equations are textbook aerodynamics and hydrodynamics to a three-degree-of-freedom reduced-order sailing dynamics model based on standard rigid-body, aerodynamic, and hydrodynamic force relationships with explicitly uncertain empirical coefficients. The simulator should not be required to pass the old key performance indicators. It should pass physics sanity checks first, and only then should the navigation controller be evaluated. For a roughly one meter autonomous boat, getting the force, trim, and keel relationships approximately right and measurable is more valuable than adding more equations. A simple model with measured coefficients is considerably more valuable than a sophisticated model full of guessed coefficients.
+
+## Appendix — Apparent Wind and Leeway Salvaged From the June 2026 Model
+
+The September 2026 refactor of the digital twin deliberately simplified the physics. It replaced the true apparent-wind vector with a scalar relative wind and it removed the leeway term entirely. That was a sound choice to establish a lean kinematic baseline, and the GPS noise that used to live inside the physics step moved into the boat's GPS model where it became more faithful. But the discarded terms are exactly the building blocks that Stage two and Stage three of this plan will re-introduce, so their structure is recorded here so it is not lost. The original source was the June 2026 copy of sim_environment.cpp inside the original firmware folder, which the benchmark repository no longer carries.
+
+The apparent wind was computed as the true vector difference between the wind and the boat's velocity. The wind direction is stored in the from convention, so the flow direction is the stored direction plus one hundred and eighty degrees. The east and north components of the true wind and of the boat velocity are computed, the boat velocity is subtracted from the wind flow to obtain the apparent flow, and the magnitude and direction of that flow feed the relative-wind angle used by the polar and the aileron-coherence logic.
+
+```
+const double trueWindFlowDeg = normalizeAngle(windDirection + 180.0);
+const double trueWindEast  = windSpeed * std::sin(trueWindFlowDeg * M_PI / 180.0);
+const double trueWindNorth = windSpeed * std::cos(trueWindFlowDeg * M_PI / 180.0);
+const double boatEast  = speed * std::sin(heading * M_PI / 180.0);
+const double boatNorth = speed * std::cos(heading * M_PI / 180.0);
+
+const double apparentFlowEast  = trueWindEast  - boatEast;
+const double apparentFlowNorth = trueWindNorth - boatNorth;
+const double apparentWindSpeed = std::hypot(apparentFlowEast, apparentFlowNorth);
+const double apparentFlowDeg   = normalizeAngle(std::atan2(apparentFlowEast, apparentFlowNorth) * 180.0 / M_PI);
+const double apparentWindFromDeg = normalizeAngle(apparentFlowDeg + 180.0);
+const double relativeWind = normalizeRelativeAngle(apparentWindFromDeg - heading);
+```
+
+The leeway term was a lateral drift velocity perpendicular to the heading, driven by the cross-wind component of the apparent flow. A unit vector pointing to the right of the heading is dotted with the apparent flow to obtain the cross-wind speed, which is multiplied by a leeway gain and clamped to a maximum. The resulting lateral drift is added to the forward velocity to form the true velocity over ground, which is what actually integrates the position.
+
+```
+const double headingRad = heading * M_PI / 180.0;
+const double rightEast  = std::cos(headingRad);
+const double rightNorth = -std::sin(headingRad);
+const double crossWindMps = apparentFlowEast * rightEast + apparentFlowNorth * rightNorth;
+const double leewaySpeedMps = clamp(crossWindMps * LEEWAY_GAIN, -MAX_LEEWAY_SPEED_MPS, MAX_LEEWAY_SPEED_MPS);
+
+const double velocityEast  = speed * std::sin(headingRad) + leewaySpeedMps * rightEast;
+const double velocityNorth = speed * std::cos(headingRad) + leewaySpeedMps * rightNorth;
+```
+
+The speed, rudder, and yaw dynamics used first-order time-constant smoothing rather than a fixed acceleration, with separate acceleration and deceleration constants for speed, a rudder constant for the mechanical linkage, and a rotation constant for the yaw rate. The mechanical rudder linkage placed the rudder at minus half the relative wind with the servo offset added on top, so the two compensations cancel and only the commanded correction turns the boat.
+
+```
+constexpr double MAX_BOAT_SPEED_MPS       = 2.5;
+constexpr double ACCEL_TIME_CONSTANT_S    = 2.0;
+constexpr double DECEL_TIME_CONSTANT_S    = 6.0;
+constexpr double RUDDER_TIME_CONSTANT_S   = 0.7;
+constexpr double ROTATION_TIME_CONSTANT_S = 1.0;
+constexpr double TURN_RATE_GAIN           = 0.30;
+constexpr double LEEWAY_GAIN              = 0.040;
+constexpr double MAX_LEEWAY_SPEED_MPS     = 0.35;
+
+double responseFactor(double dtS, double tauS) {
+    if (tauS <= 0.0) return 1.0;
+    return 1.0 - std::exp(-dtS / tauS);
+}
+
+const double mechanicalRudderDeg = -navigationRelativeWind / 2.0;
+const double targetPhysicalRudderDeg = mechanicalRudderDeg + rudderOffset;
+filteredRudder += (targetPhysicalRudderDeg - filteredRudder) * responseFactor(dtS, RUDDER_TIME_CONSTANT_S);
+
+const double steeringEff = clamp(speed / 0.75, 0.22, 1.0);
+const double commandedTurnRate = -filteredRudder * TURN_RATE_GAIN * steeringEff;
+yawRate += (commandedTurnRate - yawRate) * responseFactor(dtS, ROTATION_TIME_CONSTANT_S);
+heading = normalizeAngle(heading + yawRate * dtS);
+```
+
+These coefficients were illustrative, not measured, but several map directly onto the items the adversarial campaign flagged as unmeasured. The minus-half-relative-wind rudder compensation is the relWind-over-two magic number whose correct value depends on the real sail and rudder geometry. The leeway gain and the turn-rate gain are the empirical coefficients that Stage two and Stage three must eventually replace with measured values. When those stages are implemented, this appendix is the reference for the structure that was discarded and must be restored in proper force-and-moment form.
