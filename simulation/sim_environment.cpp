@@ -9,6 +9,18 @@
 // Constantes physiques
 const double EARTH_RADIUS_M = 6371000.0;  // Rayon de la Terre en mètres
 
+// ── Stage 1 surge dynamics (docs/SIMULATION_PHYSICS_REVIEW.md) ──
+// Force balance: u_dot = (F_sail + F_prop - R_hull(u)) / M_EFF.
+// F_sail    = SURGE_F_MAX * polar * sailEff * (wind/SURGE_WIND_REF)^2  [N]
+// R_hull(u) = SURGE_R_QUAD * u^2 + SURGE_R_LIN * u                    [N]
+// Coefficients are ILLUSTRATIVE (not measured) and tuned so terminal speed ≈ 2.5 m/s
+// at max drive (polar=1, sailEff=0.9, wind=5 m/s), matching the old kinematic maxSpeed.
+constexpr double SURGE_F_MAX    = 25.0;   // N, max sail forward drive
+constexpr double SURGE_R_QUAD   = 3.24;   // N·s²/m², quadratic hull resistance
+constexpr double SURGE_R_LIN    = 0.9;    // N·s/m, linear hull resistance
+constexpr double SURGE_M_EFF    = 50.0;   // kg, mass + added mass
+constexpr double SURGE_WIND_REF = 5.0;    // m/s, reference wind for the drive law
+
 SimulationEnvironment::SimulationEnvironment() {
     state.latitude = 0;
     state.longitude = 0;
@@ -137,17 +149,30 @@ void SimulationEnvironment::updateBoatDynamics(float aileronAngle, float rudderO
         polarCoeff = 0.7 - 0.3 * (absRelWind - 150) / 30.0;  // 0.7 → 0.4
     }
     
-    // Vitesse cible
-    double maxSpeed = 2.5;  // m/s réaliste pour petit voilier
-    double targetSpeed = maxSpeed * polarCoeff * sailEff * (state.windSpeed / 5.0);
-    if (targetSpeed > maxSpeed) targetSpeed = maxSpeed;
-    // Hélice (0 par défaut) : le bateau va au moins à la vitesse qu'elle impose.
-    if (propellerSpeedMs > targetSpeed) targetSpeed = propellerSpeedMs;
-    
-    // Inertie : convergence progressive (masse du bateau)
-    double accel = (targetSpeed < state.speed) ? 0.01 : 0.05;
-    state.speed += (targetSpeed - state.speed) * accel;
-    if (state.speed < 0.01) state.speed = 0;
+    // ── Stage 1 surge dynamics: force balance instead of target-speed convergence ──
+    // The sail drive and hull resistance now determine terminal speed physically;
+    // the hard-coded maxSpeed clamp is gone (resistance limits speed instead).
+    const double windRatio = state.windSpeed / SURGE_WIND_REF;
+    const double sailForce = SURGE_F_MAX * polarCoeff * sailEff * windRatio * windRatio;
+
+    // Propeller: the force that holds the requested cruise speed against hull
+    // resistance, so it still acts as a speed floor without a hard clamp.
+    double propForce = 0.0;
+    if (propellerSpeedMs > 0.0) {
+        propForce = SURGE_R_QUAD * propellerSpeedMs * propellerSpeedMs
+                  + SURGE_R_LIN  * propellerSpeedMs;
+    }
+
+    const double resistance = SURGE_R_QUAD * state.speed * state.speed
+                            + SURGE_R_LIN  * state.speed;
+
+    // u_dot = (F_sail + F_prop - R_hull(u)) / m_eff, integrated with Euler.
+    const double u_dot = (sailForce + propForce - resistance) / SURGE_M_EFF;
+    state.speed += u_dot * dt_s;
+    if (state.speed < 0.0) state.speed = 0.0;
+    // When there is no drive, kill the residual creep so the boat truly stops.
+    if (sailForce + propForce <= 0.0 && state.speed < 0.01) state.speed = 0.0;
+    // (surge dynamics above replace the old target-speed/inertia convergence)
     
     // ════════════════════════════════════════════════════════════
     // 4. SAFRAN = LIAISON MÉCANIQUE + DÉPHASAGE SERVO

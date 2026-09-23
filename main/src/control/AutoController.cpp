@@ -192,8 +192,17 @@ ActuatorCommand AutoController::observeWind(const GpsPosition& pos, uint32_t now
             obsSeeded_     = true;
         } else {
             float d = (float)nav_relativeAngle(smoothHeading_, pos.courseDeg);
-            smoothHeading_ = (float)nav_normalizeAngle(
-                smoothHeading_ + Calibration::WIND_OBS_SMOOTH_ALPHA * d);
+            // Outlier rejection: one bad GPS course sample (glitch) must not poison
+            // the EMA for the many seconds it takes alpha=0.1 to recover.
+            if (std::fabs(d) > Calibration::WIND_OBS_OUTLIER_REJECT_DEG) {
+                navMessage_ = "wind obs: course outlier rejected";
+                return cmd;
+            }
+            // Adaptive alpha: converge fast on the first samples, then slow.
+            float alpha = (obsSamples_ < Calibration::WIND_OBS_FAST_SAMPLES)
+                              ? Calibration::WIND_OBS_ALPHA_FAST
+                              : Calibration::WIND_OBS_ALPHA_SLOW;
+            smoothHeading_ = (float)nav_normalizeAngle(smoothHeading_ + alpha * d);
         }
         if (obsSamples_ < 255) obsSamples_++;
     }

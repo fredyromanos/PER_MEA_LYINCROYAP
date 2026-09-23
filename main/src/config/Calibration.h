@@ -57,6 +57,13 @@ static constexpr uint16_t ESC_SLEW_US = 30;
 // far enough for the track to be meaningful.
 static constexpr float WIND_OBS_DISTANCE_M  = 30.0f;  // min travel before estimate is valid
 static constexpr float WIND_OBS_SMOOTH_ALPHA = 0.1f;  // circular EMA factor for GPS course
+// --- Wind-observation EMA hardening (docs/WIND_OBSERVATION_ANALYSIS.md) ---
+// A single bad GPS course sample must not poison the EMA: reject jumps beyond this.
+static constexpr float WIND_OBS_OUTLIER_REJECT_DEG = 60.0f;
+// Adaptive smoothing: converge fast on the first samples, then slow to reject noise.
+static constexpr float   WIND_OBS_ALPHA_FAST   = 0.3f;              // first WIND_OBS_FAST_SAMPLES
+static constexpr float   WIND_OBS_ALPHA_SLOW   = WIND_OBS_SMOOTH_ALPHA;  // steady state (0.1)
+static constexpr uint8_t WIND_OBS_FAST_SAMPLES = 5;
 static constexpr float AUTO_PROP_MIN_SPEED_KMPH = 0.8f;
 static constexpr float AUTO_PROP_TARGET_SPEED_KMPH = 2.0f;
 static constexpr float AUTO_PROP_STOP_RADIUS_M = 15.0f;
