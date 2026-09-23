@@ -1,0 +1,17 @@
+# Règles udev AutoBoat — noms stables pour les deux T-Beam (CP2104).
+# Chaque puce CP2104 a un numéro de série unique d'usine ; on l'utilise pour
+# créer des liens fixes, indépendants de l'ordre de branchement (ttyUSB0/1/2...).
+#
+# Installation :
+#   sudo cp 99-autoboat.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#   (débrancher / rebrancher les cartes)
+#
+# Vérifier les séries d'une carte :  udevadm info -q property -n /dev/ttyUSBx | grep SERIAL_SHORT
+# Si tu changes de carte, mets à jour le ATTRS{serial} ci-dessous.
+
+# Bateau (drone)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", ATTRS{serial}=="02126CF1", SYMLINK+="ttyAUTOBOAT_BOAT", MODE="0666"
+
+# Transceiver (station sol)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", ATTRS{serial}=="01C00B54", SYMLINK+="ttyAUTOBOAT_TRX", MODE="0666"

@@ -1,0 +1,287 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{textcomp}
+\usepackage{lmodern}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\geometry{margin=2.4cm}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{fancyvrb}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+
+\definecolor{codebg}{gray}{0.95}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.6ex plus 0.4ex}{0.9ex}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\footnotesize PER MEA S9P-2026}
+\fancyhead[R]{\footnotesize Rapport d'avancement — 16 septembre 2026}
+\fancyfoot[C]{\footnotesize\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\setlength{\parskip}{0.7em}
+\setlength{\parindent}{0pt}
+
+\begin{document}
+
+\begin{center}
+{\LARGE\bfseries Rapport d'avancement}\\[0.4em]
+{\large Estimation du vent et validation de la chaîne GPS}
+\end{center}
+
+\vspace{0.8em}
+
+\begin{tabularx}{\textwidth}{@{}l X@{}}
+\textbf{Projet} & PER MEA S9P-2026, drone voilier autonome \\
+\textbf{Période couverte} & du 9 au 16 septembre 2026 \\
+\textbf{Cartes concernées} & LilyGO T-Beam V1.1 du drone (ESP32 + u-blox NEO-6M + AXP192),
+antenne active Taoglas \\
+\end{tabularx}
+
+\vspace{0.5em}
+\hrule
+\vspace{0.5em}
+
+\section{Objet}
+
+Deux sujets ont occupé cette période. D'abord une mise au clair de la logique
+d'estimation du vent et du rôle respectif des trois actionneurs, qui restait
+source de confusion dans nos échanges. Ensuite la mise en service effective du
+banc de test GPS autonome, spécifié la semaine dernière et compilé pour la
+première fois sur la cible cette semaine.
+
+L'objectif de fond est le même dans les deux cas : réduire le nombre de
+variables inconnues avant les essais en mer. Tant que l'on ne sait pas si un
+défaut de navigation vient du logiciel, du câblage ou de la réception
+satellite, chaque essai coûte une journée pour un diagnostic incertain.
+
+\section{Travaux du 9 septembre}
+
+\subsection{Relations angulaires et estimation du vent}
+
+La question de départ portait sur un cas concret : un vent relatif à $-90$\textdegree{}
+(venant de bâbord) avec une aile réglée à $-10$\textdegree{}. L'écart de $80$\textdegree{} entre les deux
+avait été interprété comme un « angle côté moteur », ce qui laissait supposer
+une relation fixe entre la voile et le safran.
+
+La vérification a montré que le calcul était juste mais que l'interprétation
+ne l'était pas. Il n'existe pas d'angle « côté moteur » : le système comporte
+trois actionneurs indépendants, sans relation angulaire imposée entre eux.
+
+\vspace{0.3em}
+{\footnotesize
+\begin{tabularx}{\textwidth}{@{}l l l X@{}}
+\toprule
+\textbf{Actionneur} & \textbf{Fonction} & \textbf{Débattement} & \textbf{Piloté par} \\
+\midrule
+Aileron d'aile & Sélection binaire du bord & $\pm10$\textdegree{} & Algorithme de navigation, référence vent \\
+Treuil de safran & Contrôle de cap & $\pm90$\textdegree{} / $\pm110$\textdegree{} & Algorithme de navigation, référence waypoint \\
+Hélice (ESC) & Poussée avant/arrière & Bidirectionnel & Mode manuel uniquement, voie CH3 \\
+\bottomrule
+\end{tabularx}
+}
+\vspace{0.3em}
+
+Le débattement du safran est de $\pm90$\textdegree{} en mode manuel et de $\pm110$\textdegree{} en mode
+automatique.
+
+L'écart de $80$\textdegree{} relevé correspond donc au comportement physique attendu :
+l'aile s'auto-aligne à environ $45$\textdegree{} de la coque et l'aileron ne fait qu'ajouter
+$\pm10$\textdegree{} pour choisir le bord. Le constat a été consigné dans
+\code{WIND\_OBSERVATION\_ANALYSIS.md}, avec les références de code correspondantes
+(\code{navigation.h}, lignes 280--281 et 430--431).
+
+\subsection{Lissage de la mesure de cap}
+
+Le second point concernait le filtrage exponentiel appliqué pendant la phase
+d'observation du vent, implémenté dans \code{AutoController.cpp} (lignes 99--144)
+avec un coefficient de 0,1. Deux réserves avaient été formulées, toutes deux
+levées après relecture du code :
+
+\begin{itemize}[leftmargin=1.2em,itemsep=0.35em]
+\item \textbf{Perte de précision sur la position.} La position n'est jamais lissée. Le
+filtre ne s'applique qu'au cap (\code{courseDeg}) ; le calcul de distance
+parcourue utilise les coordonnées brutes issues du GPS.
+\item \textbf{Dérive de l'étalonnage des actionneurs.} L'observation du vent ne touche
+à aucun paramètre d'étalonnage. Pendant la séquence, l'aile est figée à $+10$\textdegree{},
+le safran centré à 1500~\textmu s et l'ESC inactif. La seule sortie produite est
+l'angle de vent estimé.
+\end{itemize}
+
+La séquence retenue reste : commande LoRa, aile bloquée sur un bord, lissage du
+cap à chaque point GPS, puis estimation du vent à $90$\textdegree{} de la route suivie une
+fois 30~m parcourus.
+
+\subsection{Spécification du banc de test GPS}
+
+Le banc \code{gps\_test/} a été spécifié puis écrit dans la foulée. Le principe est
+de reprendre exactement le même code d'alimentation (\code{AxpPower}) et le même
+pilote GPS (\code{GpsUart}) que le firmware, sans aucune autre dépendance. La
+conséquence est utile : si le banc obtient un point, la chaîne GPS du firmware
+est saine ; s'il n'en obtient pas, le défaut est nécessairement matériel,
+côté antenne ou côté conditions de réception.
+
+Le banc regroupe sept fichiers (\code{gps\_test.ino}, \code{GpsUart.h/.cpp},
+\code{AxpPower.h/.cpp}, \code{BoardConfig.h}, \code{DebugConfig.h}, \code{Types.h}). La procédure
+de dépannage rédigée à cette occasion récapitule les défauts déjà rencontrés
+sur cette carte : configuration sauvegardée désactivant les trames NMEA, qui
+impose une remise aux valeurs d'usine par UBX CFG-CFG, et superviseur
+d'antenne active inactif, corrigé par CFG-ANT avec \code{flags=0x001B}.
+
+\section{Travaux du 16 septembre}
+
+\subsection{Remise en état de la chaîne de compilation}
+
+La première compilation sur cible a échoué faute d'environnement. Le poste ne
+disposait que du paquet \code{arduino:avr} ; le support ESP32 et les bibliothèques
+nécessaires étaient absents. Ont été installés le cœur \code{esp32:esp32} en
+version 3.3.11 et la bibliothèque \code{TinyGPSPlus} 1.0.3.
+
+Un défaut plus gênant est apparu ensuite, et mérite d'être signalé à l'équipe.
+Les deux copies de la bibliothèque \code{AXP202X\_Library} présentes dans le dépôt,
+sous \code{AutoBoat/} et sous \code{AutoBoat\_VN-1/}, sont \textbf{incomplètes} : elles ne
+contiennent que l'en-tête \code{axp20x.h}, le fichier source \code{axp20x.cpp} est
+absent. La compilation passe sans erreur et l'échec ne survient qu'à l'édition
+de liens, sous la forme d'une dizaine de références non définies
+(\code{AXP20X\_Class::begin}, \code{setLDO3Voltage}, \code{setPowerOutPut}, \code{adc1Enable},
+entre autres). Le diagnostic est peu évident si l'on n'y est pas préparé. La
+bibliothèque complète a été récupérée en version 1.1.3 pour débloquer la
+compilation, mais \textbf{les copies défectueuses sont toujours dans le dépôt} et
+feront perdre du temps au prochain qui compilera.
+
+\subsection{Compilation et téléversement}
+
+Une fois l'environnement complet, la compilation pour la cible
+\code{esp32:esp32:t-beam} aboutit sans avertissement :
+
+\begin{Verbatim}[fontsize=\footnotesize,frame=single,rulecolor=\color{gray},framesep=4pt]
+Sketch uses 299860 bytes (22%) of program storage space
+Global variables use 24052 bytes (7%) of dynamic memory
+\end{Verbatim}
+
+Les marges sont confortables et ne poseront pas de contrainte lors de
+l'intégration au firmware complet.
+
+Le téléversement sur \code{/dev/ttyUSB0} s'est déroulé normalement, empreinte
+vérifiée. À noter pour la suite : le pont USB-série de la carte est un CP2104
+et le port n'apparaît que si le module noyau \code{cp210x} est chargé. L'accès
+suppose par ailleurs l'appartenance au groupe \code{uucp}.
+
+\subsection{Lecture de la liaison série}
+
+La lecture du port par \code{arduino-cli monitor} ne renvoie rien sur cette carte :
+l'outil manipule les lignes DTR et RTS, ce qui maintient l'ESP32 en
+réinitialisation. Le contournement retenu consiste à configurer le port sans
+contrôle de modem avant de le lire :
+
+\begin{Verbatim}[fontsize=\footnotesize,frame=single,rulecolor=\color{gray},framesep=4pt]
+stty -F /dev/ttyUSB0 115200 raw -echo -hupcl clocal
+cat /dev/ttyUSB0
+\end{Verbatim}
+
+Cette remarque vaut d'être retenue, le symptôme (aucune sortie, carte
+apparemment muette) ressemblant à une panne alors qu'il n'en est rien.
+
+\subsection{Carte sous test}
+
+L'essai a été mené sur la T-Beam embarquée du drone, celle qui porte le
+récepteur GPS et son antenne active déportée. La seconde T-Beam du projet,
+utilisée comme transceiver pour l'IHM, n'a pas été modifiée.
+
+Le téléversement du banc a remplacé le firmware principal (\code{main/}) sur la
+carte du drone. C'est sans conséquence pour la suite des essais GPS, le banc
+étant justement conçu pour ce travail, mais \textbf{le firmware principal devra
+être reflashé avant tout essai de navigation ou de télémétrie LoRa}. Le source
+est dans le dépôt ; sa compilation demandera en plus la bibliothèque
+\code{LoRa}, non encore installée sur le poste.
+
+\subsection{Résultats de l'essai}
+
+L'essai a été conduit en intérieur, sur une durée cumulée d'environ deux
+minutes, dont un relevé continu de 60 secondes.
+
+Les éléments suivants sont validés :
+
+\begin{itemize}[leftmargin=1.2em,itemsep=0.35em]
+\item \textbf{Alimentation.} Le rail LDO3 alimente le récepteur, qui répond, et aucune
+erreur d'initialisation de l'AXP192 n'a été remontée. Cette conclusion
+appelle toutefois une réserve, détaillée plus bas.
+\item \textbf{Liaison série.} Les trames NMEA arrivent en continu, le compteur de
+caractères progresse régulièrement et le compteur de sommes de contrôle
+erronées reste à zéro. Le câblage et la vitesse de transmission sont corrects.
+\item \textbf{Antenne.} Le superviseur d'antenne suit la séquence attendue
+\code{ANTSTATUS=DONTKNOW}, puis \code{INIT}, puis \code{OK} : l'antenne active
+déportée est détectée et correctement polarisée.
+\end{itemize}
+
+En revanche, aucun satellite n'a été capté. Le nombre de satellites visibles
+est resté à zéro pendant toute la durée du relevé, toutes les trames GSV sont
+vides et les trames GGA restent sans solution. Aucun point n'a été obtenu.
+
+Une réserve sur le volet alimentation : le relevé série a été lancé après le
+début du démarrage et les premières lignes de la trace ont été perdues.
+L'absence d'erreur AXP192 n'a donc pas été constatée directement, elle est
+déduite du fait que le récepteur était alimenté. Comme le LDO3 peut être actif
+par défaut à la mise sous tension, ce raisonnement n'est pas une preuve. La
+trace complète du démarrage reste à capturer.
+
+\subsection{Interprétation}
+
+Le banc ayant été conçu pour isoler le logiciel du matériel, une chaîne NMEA
+propre associée à un superviseur d'antenne au vert écarte à la fois le
+firmware, le câblage et l'antenne du drone. Il ne reste que la réception
+satellite, et un essai en intérieur ne permet pas d'en obtenir.
+
+La validation est donc à terminer à l'extérieur, en vue dégagée, sur la même
+carte. La batterie LiPo devra être connectée : sans elle, le récepteur perd ses
+éphémérides à chaque coupure et repart en démarrage à froid, ce qui ajoute
+environ deux minutes à l'acquisition.
+
+\section{Suites à donner}
+
+\vspace{0.3em}
+{\footnotesize
+\begin{tabularx}{\textwidth}{@{}X X l@{}}
+\toprule
+\textbf{Action} & \textbf{Motif} & \textbf{Priorité} \\
+\midrule
+Refaire l'essai GPS en extérieur, LiPo connectée & Seul point non validé de la chaîne GPS & Haute \\
+Reflasher \code{main.ino} sur la carte du drone & Firmware principal remplacé par le banc de test & Haute \\
+Remplacer les copies incomplètes d'\code{AXP202X\_Library} & Échec d'édition de liens au diagnostic non évident & Haute \\
+Verser les travaux de septembre dans le dépôt & Dernier commit au 17 juin, trois mois hors gestion de version & Haute \\
+Exclure \code{IHM/.venv/} du suivi Git & L'état courant est noyé sous les fichiers d'environnement virtuel & Moyenne \\
+Capturer la trace complète du démarrage & Confirmer l'initialisation de l'AXP192, aujourd'hui seulement déduite & Basse \\
+\bottomrule
+\end{tabularx}
+}
+\vspace{0.3em}
+
+Le versement dans le dépôt est le point le plus exposé. Les développements de
+septembre n'existent aujourd'hui que dans la copie de travail d'un seul poste,
+sans sauvegarde ni historique. Le nettoyage préalable de \code{IHM/.venv/}
+conditionne d'ailleurs la lisibilité du commit.
+
+\section{Conclusion}
+
+La logique d'estimation du vent est clarifiée et documentée, et les deux
+réserves émises sur le lissage se sont révélées infondées après vérification
+du code.
+
+Le banc de test GPS est opérationnel : il compile, se téléverse et s'exécute
+sur la carte du drone, et il a validé l'alimentation du récepteur, la liaison
+série et l'antenne active. Seule la réception satellite reste à confirmer, ce
+qu'un essai en extérieur suffira à faire. Le firmware principal sera ensuite
+reflashé sur la carte.
+
+\end{document}

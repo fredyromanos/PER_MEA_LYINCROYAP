@@ -1,0 +1,33 @@
+.codex
+simulation/*.o
+simulation/*.d
+simulation/boat_simulator
+simulation/export/*.o
+simulation/export/*.d
+simulation/mocks/*.o
+simulation/mocks/*.d
+simulation/output/
+
+# Native unit-test build artifacts
+test/build/
+test_runner
+!simulation/output/.gitkeep
+
+# Build artifacts and binaries
+*.o
+boat_simulator
+adversarial/adversarial
+adversarial.csv
+simu_boat
+simu_v2
+predict_path
+simu_gps
+test_nav
+test_hw
+test_gps_logic
+simulation/output/
+__pycache__/
+.venv/
+venv/
+node_modules/
+*.pyc

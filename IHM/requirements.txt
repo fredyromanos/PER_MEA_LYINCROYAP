@@ -1,0 +1,5 @@
+pyserial
+pymongo[asyncio]
+fastapi 
+uvicorn
+python-dotenv

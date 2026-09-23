@@ -1,0 +1,186 @@
+========================================================================
+ARCHITECTURE DU PROJET — PER_AutoBoat (Drone de surface à voile)
+========================================================================
+Note : les dossiers marqués "… (contenu non listé — dépendances/sauvegardes/
+artefacts)" contiennent des sous-dossiers volontairement non développés :
+environnements virtuels Python (.venv / myvenv / site-packages), bibliothèques
+Arduino tierces (libraries/), artefacts de compilation (build/) et sauvegardes
+horodatées KiCad (*-backups/).
+------------------------------------------------------------------------
+PER_AutoBoat/
+├── 00_Pilotage_projet/
+│   ├── Bilans fin de période/
+│   │   ├── audio/
+│   │   │   └── enregistrement/
+│   │   ├── Essai lac/
+│   │   ├── Essai parking/
+│   │   └── Rush Vidéo/
+│   ├── Commandes/achats/
+│   ├── Grille critériée/
+│   └── Réunions/
+├── 01_Cadrage_et_spécifications/
+├── 02_Conception_système/
+│   ├── Conception mécanique/
+│   │   ├── Photos/
+│   │   └── Pièces 3D/
+│   │       ├── Capteurs/
+│   │       │   └── STPS/
+│   │       ├── Fixation aileron/
+│   │       ├── Fixation boîte/
+│   │       │   └── Raccord câble/
+│   │       ├── Fixation moteur/
+│   │       └── Servomoteurs/
+│   │           └── Safran/
+│   └── Electronique/
+│       ├── Batterie/
+│       ├── Connecteurs/
+│       ├── Futur (pas encore implémenté)/
+│       │   ├── Alimentation de secours/
+│       │   └── Panneau solaire/
+│       └── Kicad_9_0/
+│           ├── Custom_Components/
+│           │   └── LILYGO_TBEAM.pretty/
+│           └── PCB_Electronica/
+│               ├── PCB_Electronica-backups/      … (contenu non listé — dépendances/sauvegardes/artefacts)
+│               └── PCB_Electronica_V2-backups/      … (contenu non listé — dépendances/sauvegardes/artefacts)
+├── 03_Developpement_logiciel/
+│   ├── Informatique/
+│   │   ├── AutoBoat/
+│   │   │   ├── Arduino/
+│   │   │   │   ├── AutoBoat_Simulation/
+│   │   │   │   │   ├── boat/
+│   │   │   │   │   │   └── build/      … (contenu non listé — dépendances/sauvegardes/artefacts)
+│   │   │   │   │   └── libs/
+│   │   │   │   ├── lib/
+│   │   │   │   │   ├── Battery/
+│   │   │   │   │   ├── Core/
+│   │   │   │   │   ├── Gps/
+│   │   │   │   │   ├── MotorControl/
+│   │   │   │   │   ├── Propulsion/
+│   │   │   │   │   ├── Radio/
+│   │   │   │   │   └── ServoControl/
+│   │   │   │   ├── libraries/      … (contenu non listé — dépendances/sauvegardes/artefacts)
+│   │   │   │   ├── src/
+│   │   │   │   └── test/
+│   │   │   ├── Data/
+│   │   │   │   ├── ANCIENNE_ROUTE/
+│   │   │   │   └── ROUTE_TEST_SORTIE/
+│   │   │   ├── IHM/
+│   │   │   │   ├── app/
+│   │   │   │   │   ├── routes/
+│   │   │   │   │   ├── static/
+│   │   │   │   │   └── utils/
+│   │   │   │   ├── AutoBoat_Simulation/
+│   │   │   │   ├── data/
+│   │   │   │   │   └── WayPoint/
+│   │   │   │   │       └── Data/
+│   │   │   │   │           ├── ANCIENNE_ROUTE/
+│   │   │   │   │           └── ROUTE_TEST_SORTIE/
+│   │   │   │   ├── .github/
+│   │   │   │   │   └── agents/
+│   │   │   │   ├── .venv/      … (contenu non listé — dépendances/sauvegardes/artefacts)
+│   │   │   │   └── .vscode/
+│   │   │   ├── IHM_V2/
+│   │   │   │   └── IHM/
+│   │   │   │       ├── app/
+│   │   │   │       │   ├── routes/
+│   │   │   │       │   ├── static/
+│   │   │   │       │   └── utils/
+│   │   │   │       ├── AutoBoat_Simulation/
+│   │   │   │       ├── .github/
+│   │   │   │       │   └── agents/
+│   │   │   │       ├── myvenv/
+│   │   │   │       │   ├── Include/
+│   │   │   │       │   ├── Lib/
+│   │   │   │       │   │   └── site-packages/      … (contenu non listé — dépendances/sauvegardes/artefacts)
+│   │   │   │       │   └── Scripts/
+│   │   │   │       └── .venv/      … (contenu non listé — dépendances/sauvegardes/artefacts)
+│   │   │   └── Python/
+│   │   │       ├── simulator/
+│   │   │       │   └── AutoBoatSimulator/
+│   │   │       ├── templates/
+│   │   │       └── .venv/      … (contenu non listé — dépendances/sauvegardes/artefacts)
+│   │   ├── AutoBoat_VN-1/
+│   │   │   ├── Arduino/
+│   │   │   │   ├── boat/
+│   │   │   │   ├── GPS/
+│   │   │   │   ├── heading/
+│   │   │   │   ├── libraries/      … (contenu non listé — dépendances/sauvegardes/artefacts)
+│   │   │   │   ├── LoRa/
+│   │   │   │   │   ├── emitter/
+│   │   │   │   │   └── receiver/
+│   │   │   │   ├── reset/
+│   │   │   │   ├── servo/
+│   │   │   │   └── transceiver/
+│   │   │   ├── Data/
+│   │   │   │   ├── ANCIENNE_ROUTE/
+│   │   │   │   └── ROUTE_TEST_SORTIE/
+│   │   │   ├── ihm-2/
+│   │   │   │   ├── app/
+│   │   │   │   │   ├── routes/
+│   │   │   │   │   ├── static/
+│   │   │   │   │   └── utils/
+│   │   │   │   └── .venv/      … (contenu non listé — dépendances/sauvegardes/artefacts)
+│   │   │   └── Python/
+│   │   │       ├── simulator/
+│   │   │       │   └── AutoBoatSimulator/
+│   │   │       ├── templates/
+│   │   │       └── .venv/      … (contenu non listé — dépendances/sauvegardes/artefacts)
+│   │   ├── Calcul dist IHM/
+│   │   ├── docs/
+│   │   ├── GPS Filter de Kalman/
+│   │   ├── IHM/
+│   │   │   ├── app/
+│   │   │   │   ├── routes/
+│   │   │   │   ├── static/
+│   │   │   │   └── utils/
+│   │   │   ├── AutoBoat_Simulation/
+│   │   │   ├── data/
+│   │   │   │   └── WayPoint/
+│   │   │   │       └── Data/
+│   │   │   │           ├── ANCIENNE_ROUTE/
+│   │   │   │           └── ROUTE_TEST_SORTIE/
+│   │   │   ├── .github/
+│   │   │   │   └── agents/
+│   │   │   ├── .venv/      … (contenu non listé — dépendances/sauvegardes/artefacts)
+│   │   │   └── .vscode/
+│   │   ├── main/
+│   │   │   ├── bin/
+│   │   │   └── src/
+│   │   │       ├── app/
+│   │   │       ├── comm/
+│   │   │       ├── config/
+│   │   │       ├── control/
+│   │   │       ├── core/
+│   │   │       ├── drivers/
+│   │   │       └── navigation/
+│   │   ├── Mode Eco energie/
+│   │   ├── test/
+│   │   │   ├── build/      … (contenu non listé — dépendances/sauvegardes/artefacts)
+│   │   │   └── stubs/
+│   │   └── transceiver/
+│   └── ModeSansVent/
+├── 04_Integration_et_essais/
+│   └── Essais/
+│       ├── Lac de Saint-Renan/
+│       ├── Mer/
+│       └── Parking/
+├── 05_Documentation_et_livrables/
+│   ├── Cahier des charges/
+│   └── Rapport éthique/
+├── 06_Partenaires_et_sources_externes/
+│   └── Ifremer/
+├── 07_Passation_et_archives/
+│   ├── PASSATION/
+│   │   ├── RESSOURCES_ELECTRONIQUE/
+│   │   ├── RESSOURCES_INFORMATIQUE/
+│   │   │   ├── Carte-Arduino/
+│   │   │   └── IHM/
+│   │   └── RESSOURCES_MECA/
+│   └── Radio Montine/
+└── Simulation/
+    └── simulation/
+        ├── docs/
+        ├── export/
+        ├── mocks/
+        └── output/

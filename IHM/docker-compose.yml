@@ -1,0 +1,12 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: autoboat-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - autoboat-mongo-data:/data/db
+
+volumes:
+  autoboat-mongo-data:

@@ -1,0 +1,1316 @@
+% ============================================================================
+% Informe Técnico — Dron de superficie a vela sobre T-Beam ESP32
+% Idioma: Español
+% Autor (código original): Mohamed EL JILY
+% Autor (refonte / firmware actual): Facundo Arito
+% Compilación: pdflatex -interaction=nonstopmode informe_proyecto_es.tex (x2)
+% ============================================================================
+
+\documentclass[12pt,a4paper]{article}
+
+% ── Codificación (pdflatex) ──────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{textcomp}
+
+% ── Idioma (sin babel-spanish para no depender de texlive-lang) ──────────────
+\renewcommand{\contentsname}{\'Indice}
+\renewcommand{\abstractname}{Resumen}
+\renewcommand{\appendixname}{Anexo}
+\renewcommand{\refname}{Referencias}
+\renewcommand{\figurename}{Figura}
+\renewcommand{\tablename}{Tabla}
+
+% ── Diseño de página ─────────────────────────────────────────────────────────
+\usepackage[top=2.5cm, bottom=2.5cm, left=2.8cm, right=2.8cm]{geometry}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage{setspace}
+\onehalfspacing
+
+% ── Colores ──────────────────────────────────────────────────────────────────
+\usepackage[dvipsnames]{xcolor}
+\definecolor{codebg}{HTML}{1E1E2E}
+\definecolor{codefg}{HTML}{CDD6F4}
+\definecolor{commentfg}{HTML}{6C7086}
+\definecolor{keywordfg}{HTML}{CBA6F7}
+\definecolor{stringfg}{HTML}{A6E3A1}
+\definecolor{numberfg}{HTML}{FAB387}
+\definecolor{warnbg}{HTML}{FFF8E1}
+\definecolor{warnborder}{HTML}{F59E0B}
+\definecolor{okbg}{HTML}{F0FDF4}
+\definecolor{okborder}{HTML}{16A34A}
+\definecolor{infobg}{HTML}{EFF6FF}
+\definecolor{infoborder}{HTML}{2563EB}
+\definecolor{tableheadbg}{HTML}{374151}
+\definecolor{tableheadfg}{HTML}{FFFFFF}
+\definecolor{tablerowalt}{HTML}{F9FAFB}
+
+% ── Cajas de aviso ───────────────────────────────────────────────────────────
+\usepackage{tcolorbox}
+\tcbuselibrary{skins, breakable}
+
+\newtcolorbox{warningbox}{
+  colback=warnbg, colframe=warnborder,
+  fonttitle=\bfseries, title={\color{warnborder}$\blacktriangle$\ Problema},
+  breakable, boxrule=1pt, left=6pt, right=6pt
+}
+\newtcolorbox{okbox}{
+  colback=okbg, colframe=okborder,
+  fonttitle=\bfseries, title={\color{okborder}$\checkmark$\ Soluci\'on},
+  breakable, boxrule=1pt, left=6pt, right=6pt
+}
+\newtcolorbox{infobox}[1][]{
+  colback=infobg, colframe=infoborder,
+  fonttitle=\bfseries, title={\color{infoborder}$\blacksquare$\ #1},
+  breakable, boxrule=1pt, left=6pt, right=6pt
+}
+
+% ── Listings (código fuente) ─────────────────────────────────────────────────
+\usepackage{listings}
+\usepackage{lstautogobble}
+
+\lstdefinestyle{cpp}{
+  language=C++,
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize\color{codefg},
+  keywordstyle=\color{keywordfg}\bfseries,
+  stringstyle=\color{stringfg},
+  commentstyle=\color{commentfg}\itshape,
+  numberstyle=\tiny\color{numberfg},
+  numbers=left, numbersep=8pt,
+  breaklines=true, breakatwhitespace=true,
+  frame=single, rulecolor=\color{codebg!40!black},
+  tabsize=4, showstringspaces=false,
+  autogobble=true,
+  morekeywords={uint8_t,uint16_t,uint32_t,int8_t,int16_t,int32_t,bool,
+                constexpr,noexcept,nullptr,override,IRAM_ATTR,portMUX_TYPE},
+}
+\lstdefinestyle{shell}{
+  language=bash,
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize\color{codefg},
+  breaklines=true, frame=single, rulecolor=\color{codebg!40!black},
+  showstringspaces=false,
+}
+\lstdefinestyle{json}{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\footnotesize\color{codefg},
+  breaklines=true, frame=single, rulecolor=\color{codebg!40!black},
+  showstringspaces=false,
+}
+
+% ── Tablas ───────────────────────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{colortbl}
+\usepackage{multirow}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+% ── Hiperenlaces ─────────────────────────────────────────────────────────────
+\usepackage[hidelinks]{hyperref}
+\hypersetup{
+  pdftitle={Informe T\'ecnico -- Dron de superficie a vela},
+  pdfauthor={Facundo Arito},
+  bookmarksnumbered=true,
+}
+
+% ── Formato de títulos ───────────────────────────────────────────────────────
+\usepackage{titlesec}
+\titleformat{\section}{\Large\bfseries\color{tableheadbg}}{\thesection.}{0.7em}{}[\vspace{-0.3em}\color{infoborder}\rule{\linewidth}{1.5pt}]
+\titleformat{\subsection}{\large\bfseries\color{tableheadbg!80!black}}{\thesubsection.}{0.7em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{\thesubsubsection.}{0.6em}{}
+
+% ── Listas ───────────────────────────────────────────────────────────────────
+\usepackage{enumitem}
+\setlist{itemsep=2pt, topsep=4pt}
+
+% ── Encabezados y pies ───────────────────────────────────────────────────────
+\usepackage{fancyhdr}
+\setlength{\headheight}{15pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Dron de superficie a vela --- Informe t\'ecnico}
+\fancyhead[R]{\small \today}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── Utilidades ───────────────────────────────────────────────────────────────
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\newcommand{\gpio}[1]{\texttt{GPIO#1}}
+\newcommand{\us}[1]{\texttt{#1\,\textmu s}}
+\newcommand{\file}[1]{\texttt{#1}}
+\newcommand{\done}{\textcolor{okborder}{\textbf{[OK]}}}
+\newcommand{\todo}{\textcolor{warnborder}{\textbf{[\ \ ]}}}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Portada ──────────────────────────────────────────────────────────────────
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  {\Huge\bfseries Dron de superficie a vela\par}
+  \vspace{0.5cm}
+  {\Large Informe t\'ecnico --- Desarrollo del firmware y de la electr\'onica\par}
+  \vspace{2cm}
+  \rule{\linewidth}{1pt}
+  \vspace{0.5cm}
+
+  \begin{tabular}{ll}
+    \textbf{Plataforma:} & LilyGO T-Beam V1.1 (ESP32 + SX1276 + GPS u-blox + AXP192) \\[4pt]
+    \textbf{Lenguaje:}   & Arduino / C++, destino ESP32 Arduino Core 3.x \\[4pt]
+    \textbf{Integrantes del grupo: } & Facundo Arito \\[4pt]
+    \textbf{Fecha:}      & \today \\
+  \end{tabular}
+
+  \vspace{0.5cm}
+  \rule{\linewidth}{1pt}
+  \vspace{2cm}
+
+  \begin{abstract}
+    Este documento recorre la totalidad del desarrollo inform\'atico y electr\'onico
+    del dron de superficie a vela basado en el m\'odulo T-Beam de Espressif/LilyGO.
+    Cubre el concepto f\'isico del veh\'iculo, el c\'odigo original y sus limitaciones,
+    la reescritura completa de la arquitectura de software, las dos revisiones del
+    PCB, el modo manual unificado con propulsi\'on bidireccional, la navegaci\'on
+    aut\'onoma a vela, la interfaz de estaci\'on terrena (IHM) y, de forma detallada,
+    \textbf{todos los problemas} encontrados a lo largo del proyecto junto con las
+    soluciones implementadas. Una secci\'on final reúne los problemas a\'un abiertos
+    y las opciones de mejora propuestas para resolverlos.
+  \end{abstract}
+
+  \vfill
+  \textit{Proyecto de investigaci\'on (PER) --- Dron aut\'onomo de adquisici\'on de datos marinos}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% =============================================================================
+\section{Gu\'ia de uso para el pr\'oximo grupo de trabajo}
+\label{sec:guia}
+% =============================================================================
+
+Esta secci\'on es una \textbf{gu\'ia pr\'actica de puesta en marcha} pensada para
+el siguiente grupo que retome el proyecto. Explica qu\'e material hace falta, c\'omo
+encender y pilotar el dron, c\'omo programar y conectar las dos placas T-Beam, y
+c\'omo levantar la interfaz de estaci\'on terrena (IHM) tanto en Linux como en
+Windows. Se recomienda leerla \textbf{completa} antes del primer encendido.
+
+\subsection{Material necesario}
+
+\begin{longtable}{L{4.5cm} L{8.5cm}}
+  \toprule
+  \rowcolor{tableheadbg}
+  \textcolor{tableheadfg}{\textbf{Elemento}} &
+  \textcolor{tableheadfg}{\textbf{Detalle}} \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+  Dron (``barco'') & T-Beam montada en el casco sobre el PCB V2. Conversor
+                     USB-serie CP2104, n\'umero de serie \texttt{02126CF1} \\[3pt]
+  Transceptor (estaci\'on tierra) & Segunda T-Beam con el sketch
+                     \file{transceiver.ino}. CP2104 serie \texttt{01C00B54} \\[3pt]
+  Radio RC & Emisor Pro-Tronik PTR-6A + receptor R8X (2,4~GHz) \\[3pt]
+  Bater\'ia & LiPo 2S \textbf{cargada} ($\approx$8,4~V) + portabater\'ias del
+              casco. \textbf{Imprescindible} para un funcionamiento estable \\[3pt]
+  Computadora & Linux (recomendado) o Windows, con Docker, Python 3 y navegador \\[3pt]
+  Cables USB & Uno de buena calidad para el transceptor; otro para programar /
+               alimentar el barco \\
+\end{longtable}
+
+\subsection{Puesta en marcha del dron (barco)}
+
+\begin{enumerate}
+  \item \textbf{Cargar la LiPo} por completo y conectarla al \textbf{terminal del PCB} del barco (esta indicado GND en la PCB).
+  \item \textbf{Encender primero el emisor RC} y comprobar que el selector de modo
+    (CH5) est\'a en \textbf{Manual} (posici\'on baja). El \textbf{primer ensayo debe
+    ser siempre manual} para probar todos los actuadores.
+  \item \textbf{Energizar el barco.} Conectar el USB de la T-Beam (ya sea a la alimentacion PCB o a una pc para leer el puerto serie) En el arranque imprime por serie l\'ineas de
+    estado (p.\,ej.\ \texttt{[LORA] OK}).
+  \item \textbf{Esperar el fix GPS:} el LED \texttt{TIMEPULSE} del NEO-6M parpadea a
+    1~Hz cuando hay fix. Con LiPo conectada el fix llega en segundos (arranque en
+    caliente); sin LiPo, cada encendido es un arranque en fr\'io de $\approx$2~min.
+  \item \textbf{Pilotar en manual:}
+  \begin{itemize}
+    \item \textbf{CH5 (modo):} alto $=$ Autom\'atico, medio $=$ Sail (inerte, todo en
+      neutro), bajo $=$ Manual.
+    \item \textbf{CH2 (vela):} bascula la vela entre babor y estribor ($\pm10^{\circ}$).
+    \item \textbf{CH4 (tim\'on):} posiciona el winch del tim\'on ($\pm90^{\circ}$).
+    \item \textbf{CH3 (motor, bidireccional):} centro $=$ paro, un extremo $=$
+      $+100~\%$ adelante, el otro $=$ $-100~\%$ atr\'as. Requiere el ESC en modo
+      bidireccional (ver punto siguiente).
+  \end{itemize}
+\end{enumerate}
+
+\begin{warningbox}
+  \textbf{Seguridad:} si se pierde la se\~nal RC, el dron entra en \emph{Failsafe},
+  que \textbf{navega de forma aut\'onoma}. Como el modo aut\'onomo nunca se valid\'o
+  en el agua, el primer ensayo debe hacerse en manual, en aguas tranquilas y con un
+  plan de recuperaci\'on (p.\,ej.\ bote o cabo).
+\end{warningbox}
+
+\subsection{Programaci\'on (flasheo) de las T-Beam}
+
+Ambas placas usan el mismo n\'ucleo (\texttt{FQBN = esp32:esp32:t-beam}). El barco
+lleva el sketch \file{main/}; el transceptor lleva \file{transceiver/}.
+
+\begin{lstlisting}[style=shell, caption={Compilar y flashear con arduino-cli}]
+# (rutas relativas a la carpeta raiz del proyecto = Post-Claude)
+# Compilar el firmware del barco
+~/bin/arduino-cli compile --fqbn esp32:esp32:t-beam main
+
+# Flashear el barco (ajustar el puerto)
+~/bin/arduino-cli upload --port /dev/ttyUSB0 --fqbn esp32:esp32:t-beam main
+
+# Idem para el transceptor
+~/bin/arduino-cli upload --port /dev/ttyUSB0 --fqbn esp32:esp32:t-beam transceiver
+\end{lstlisting}
+
+\begin{itemize}
+  \item \textbf{Identificar cada placa por su n\'umero de serie} (en Linux:
+    \texttt{ls -l /dev/serial/by-id/}). Barco $=$ \texttt{02126CF1},
+    transceptor $=$ \texttt{01C00B54}.
+  \item \textbf{Si el flasheo falla} (``\emph{chip stopped responding}'', el puerto
+    se re-enumera): es un \emph{brownout} por alimentaci\'on insuficiente.  Entrar en modo bootloader manual (mantener \textbf{BOOT/IO0}
+    mientras se pulsa \textbf{RST} o se reconecta el USB). Ver Secci\'on~\ref{sec:alim}.
+  \item No tener un monitor serie abierto sobre el puerto mientras se programa.
+\end{itemize}
+
+\subsection{Conexi\'on de las dos T-Beam}
+
+\begin{itemize}
+  \item El \textbf{transceptor} se conecta por \textbf{USB a la computadora} de
+    tierra. Aparece como \texttt{/dev/ttyUSBx} en Linux o \texttt{COMx} en Windows.
+  \item El \textbf{barco no se conecta por cable} durante la operaci\'on: se comunica
+    con el transceptor por \textbf{radio LoRa a 433~MHz}. Ambos firmwares ya usan los
+    mismos par\'ametros de radio (433~MHz, SF7, BW125~kHz).
+  \item El transceptor reenv\'ia a la IHM cada heartbeat del barco (y le inyecta el
+    RSSI medido en tierra) y transmite al barco los comandos de la IHM.
+\end{itemize}
+
+\begin{warningbox}
+  \textbf{No abrir} un monitor serie (gtkterm, el monitor del IDE Arduino, un script
+  pyserial, etc.) sobre el puerto del transceptor \textbf{mientras corre la IHM}: los
+  dos lectores compiten por el puerto y corrompen el JSON de telemetr\'ia.
+\end{warningbox}
+
+\subsection{Uso de la IHM en Linux}
+
+\subsubsection{Programas que hay que instalar (Linux)}
+
+\begin{longtable}{L{4.2cm} L{8.8cm}}
+  \toprule
+  \rowcolor{tableheadbg}
+  \textcolor{tableheadfg}{\textbf{Programa}} &
+  \textcolor{tableheadfg}{\textbf{Para qu\'e / c\'omo}} \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+  \textbf{Docker Engine} + plugin \texttt{docker compose} & Levanta la base de datos
+    \textbf{MongoDB} (imagen \texttt{mongo:7}, que se descarga sola la primera vez).
+    En Ubuntu/Debian: \texttt{sudo apt install docker.io docker-compose-plugin}.
+    A\~nadir el usuario al grupo: \texttt{sudo usermod -aG docker \$USER} (y reabrir
+    sesi\'on) para no usar \texttt{sudo} \\[3pt]
+  \textbf{Python 3} + \texttt{venv} + \texttt{pip} & Ejecuta el servidor y el puente
+    serie. \texttt{sudo apt install python3 python3-venv python3-pip} \\[3pt]
+  \textbf{Paquetes Python} & Se instalan dentro de un entorno virtual a partir de
+    \file{requirements.txt}: \texttt{fastapi}, \texttt{uvicorn},
+    \texttt{pymongo[asyncio]}, \texttt{pyserial}, \texttt{python-dotenv} \\[3pt]
+  \textbf{Navegador web} & Para abrir la interfaz (Firefox, Chrome, etc.) \\
+\end{longtable}
+
+\textbf{Preparaci\'on (una sola vez)} --- crear el entorno virtual e instalar los
+paquetes Python (rutas relativas a la ra\'iz \file{Post-Claude}):
+
+\begin{lstlisting}[style=shell, caption={Instalacion inicial de la IHM en Linux}]
+cd IHM
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+\end{lstlisting}
+
+\textbf{Arranque y parada} --- conectar el transceptor por USB y, desde la carpeta
+\file{IHM/}, ejecutar:
+
+\begin{lstlisting}[style=shell, caption={Arrancar y detener la IHM en Linux}]
+cd IHM
+./start_ihm.sh                 # autodetecta el transceptor por su serie
+# o forzar el puerto:
+./start_ihm.sh /dev/ttyUSB0
+
+# ... al terminar:
+./stop_ihm.sh                  # libera el puerto 5000 y baja MongoDB (Docker)
+\end{lstlisting}
+
+\begin{itemize}
+  \item \file{start\_ihm.sh} levanta MongoDB (contenedor Docker via
+    \texttt{docker compose}), \file{serial\_link.py} (lee/escribe el puerto serie) y
+    \file{webserver.py} (servidor web), y abre el navegador en
+    \texttt{http://localhost:5000}.
+  \item En el mapa: ver telemetr\'ia en vivo, definir waypoints con clic, enviar la
+    ruta y los comandos (navegar, parar, medir viento, etc.).
+  \item Conmutador \textbf{Sim / R\'eel}: en ``R\'eel'' usa el transceptor f\'isico;
+    en ``Sim'' levanta un simulador de barco (sin hardware).
+  \item El puerto del transceptor se \textbf{autodetecta} por su n\'umero de serie
+    (\texttt{01C00B54}), por lo que normalmente no hace falta indicarlo.
+\end{itemize}
+
+\subsection{Uso de la IHM en Windows}
+
+La IHM se desarroll\'o en Linux (los scripts de arranque son \texttt{bash}), por lo
+que en Windows lo m\'as sencillo es ejecutarla dentro de WSL2.
+
+\subsubsection{Programas que hay que instalar (Windows)}
+
+\begin{longtable}{L{4.2cm} L{8.8cm}}
+  \toprule
+  \rowcolor{tableheadbg}
+  \textcolor{tableheadfg}{\textbf{Programa}} &
+  \textcolor{tableheadfg}{\textbf{Para qu\'e / c\'omo}} \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+  \textbf{WSL2} (Ubuntu) & Subsistema Linux dentro de Windows; permite usar los
+    mismos scripts \texttt{bash}. Instalar con \texttt{wsl --install} en PowerShell
+    (como administrador) \\[3pt]
+  \textbf{Docker Desktop} & Levanta MongoDB. Instalarlo y activar la
+    \textbf{integraci\'on con WSL2} en sus ajustes \\[3pt]
+  \textbf{usbipd-win} & Comparte el puerto USB del transceptor con WSL (Windows no lo
+    pasa solo). Instalar con \texttt{winget install usbipd} \\[3pt]
+  \textbf{Python 3} + paquetes & Ya viene en Ubuntu de WSL; instalar los paquetes
+    igual que en Linux (\file{requirements.txt}). Si se usa Windows nativo, instalar
+    Python desde \texttt{python.org} \\[3pt]
+  \textbf{Navegador web} & Para abrir \texttt{http://localhost:5000} \\
+\end{longtable}
+
+\textbf{Camino recomendado --- WSL2 + Docker Desktop:} dentro de Ubuntu (WSL) se
+siguen \textbf{exactamente los mismos pasos que en Linux} (crear el \texttt{.venv},
+instalar \file{requirements.txt}, \file{./start\_ihm.sh}). Para que WSL ``vea'' el
+transceptor hay que adjuntar el USB desde PowerShell:
+
+\begin{lstlisting}[style=shell, caption={Adjuntar el USB del transceptor a WSL (PowerShell admin)}]
+usbipd list                       # ver el BUSID del CP210x (transceptor)
+usbipd bind --busid <BUSID>
+usbipd attach --wsl --busid <BUSID>   # dentro de WSL aparece como /dev/ttyUSBx
+\end{lstlisting}
+
+\textbf{Alternativa --- Windows nativo (sin WSL):} instalar Docker Desktop y Python
+para Windows y lanzar los componentes a mano: \texttt{docker compose up} para
+MongoDB, luego \texttt{python serial\_link.py} y \texttt{python webserver.py}. El
+puerto serie ser\'a \texttt{COMx} (verificarlo en el Administrador de dispositivos)
+y hay que ajustar \texttt{SERIAL\_PORT\_REAL} en el archivo \file{.env} a ese
+\texttt{COMx}. En ambos casos la interfaz se abre en \texttt{http://localhost:5000}.
+
+\begin{warningbox}
+  \textbf{Red WiFi --- EDUROAM no funciona.} Como la IHM usa MongoDB (en Docker) y la
+  pila de red local, en la red institucional \textbf{EDUROAM la IHM no funciona}:
+  EDUROAM aplica aislamiento de clientes y restricciones de red (firewall/proxy) que
+  impiden el correcto funcionamiento de Docker/MongoDB y de la comunicaci\'on local
+  necesaria.
+
+  \textbf{Soluci\'on (probada por el grupo):} conectar la computadora que ejecuta la
+  IHM a una red sin esas restricciones. En la pr\'actica, \textbf{compartir los datos
+  m\'oviles del celular (hotspot / anclaje a red) a la computadora}: con el hotspot
+  del tel\'efono la IHM levanta y funciona correctamente.
+\end{warningbox}
+
+% =============================================================================
+\section{Presentaci\'on del proyecto}
+% =============================================================================
+
+\subsection{Concepto físico}
+
+El dron es un veh\'iculo de superficie propulsado principalmente por una vela.
+Su concepci\'on es original: la vela es de \textbf{perfil de ala} y gira libremente
+alrededor de un eje vertical solidario al casco. Su aerodin\'amica pasiva orienta
+autom\'aticamente el perfil de modo que el viento incide siempre a unos
+$45^{\circ}$ del eje longitudinal del dron, sin necesidad de un control activo del
+\'angulo de la vela. La maniobra se realiza con dos actuadores principales:
+
+\begin{itemize}
+  \item \textbf{Servo aler\'on (vela) --- Futaba S3003:} controla un peque\~no
+    flap en el borde de fuga de la vela. Su recorrido \'util es estrictamente de
+    $\pm10^{\circ}$. La deflexi\'on determina hacia qu\'e lado (babor o estribor)
+    empuja la vela, eligiendo de hecho la amura sobre la que navega el barco.
+    \textbf{No es un control continuo}: solo las dos posiciones extremas tienen
+    sentido f\'isico, por lo que se modela como un estado binario ($+1$ / $-1$).
+
+  \item \textbf{Servo tim\'on / rotor --- Graupner Regatta ECO II (mod.\ 5176):}
+    es el actuador principal de rumbo (guini\'ada). Es un \emph{winch de vela
+    multivuelta posicional}: la se\~nal PWM ordena una \textbf{posici\'on} del eje
+    (no una velocidad). Centro mec\'anico = \us{1500}, recorrido total $=$ 6 vueltas,
+    y mantiene la posici\'on bajo carga como un servo est\'andar.
+
+  \item \textbf{Propulsor (ESC):} utilizado \'unicamente cuando no hay viento
+    suficiente. Permite la propulsi\'on a h\'elice como respaldo. En el PCB V2 se
+    usa un \'unico ESC (se elimin\'o el segundo).
+\end{itemize}
+
+\begin{infobox}[Principio de navegaci\'on sin sensor de viento]
+  El sistema \textbf{no mide} la direcci\'on del viento directamente: la
+  \emph{deduce} a partir del rumbo GPS (track) y del estado de los actuadores.
+  La estimaci\'on requiere un desplazamiento m\'inimo de 30~m. Esta carencia de
+  sensores es central en el proyecto y se retoma en la Secci\'on~\ref{sec:abiertos}.
+\end{infobox}
+
+\subsection{Objetivo del proyecto}
+
+El proyecto es un PER (Proyecto de Estudios y Recherche) cuyo prop\'osito final es
+la \textbf{adquisici\'on aut\'onoma de datos marinos}: el dron debe alcanzar puntos
+de paso (\emph{waypoints}) GPS navegando a vela, recolectar datos de sensores y
+transmitirlos por radio LoRa a una estaci\'on terrena.
+
+\subsection{Material principal}
+
+\begin{longtable}{L{4cm} L{9cm}}
+  \toprule
+  \rowcolor{tableheadbg}
+  \textcolor{tableheadfg}{\textbf{Componente}} &
+  \textcolor{tableheadfg}{\textbf{Descripci\'on}} \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+  LilyGO T-Beam V1.1 & M\'odulo que integra ESP32 WROVER, LoRa SX1276 433~MHz,
+                       GPS u-blox NEO-6M, AXP192 (gesti\'on de energ\'ia) y
+                       portabater\'ias 18650 \\[3pt]
+  Futaba S3003 & Servo aler\'on de la vela, centro a \us{1520}, $\pm10^{\circ}$ \\[3pt]
+  Graupner Regatta ECO II & Winch de tim\'on multivuelta, \us{1500} = centro,
+                            1000--2000~\textmu s = rango, hasta 3,3~A en carga \\[3pt]
+  Pro-Tronik PTR-6A & Emisor 6 v\'ias FHSS 2,4~GHz, PWM 1000--2000~\textmu s \\[3pt]
+  Pro-Tronik R8X & Receptor 8 v\'ias, PWM est\'andar 50~Hz \\[3pt]
+  Pro-Tronik Black Fet & ESC de la serie, programaci\'on por tarjeta EPRG-3 \\[3pt]
+  Antena GPS & Taoglas activa, conector u.FL \\[3pt]
+  PCB v1 / PCB v2 & Placa de interfaz a medida (KiCad 9) \\
+\end{longtable}
+
+% =============================================================================
+\section{C\'odigo original --- \texttt{boat.ino}}
+% =============================================================================
+
+\subsection{Arquitectura y funcionamiento}
+
+El c\'odigo original (\file{boat.ino}, del primer grupo, fuera de este
+repositorio), escrito por Mohamed EL JILY, constituye el punto de partida del
+proyecto. Estaba organizado
+en m\'odulos: \file{Gps}, \file{ServoControl}, \file{RadioReceiver},
+\file{MotorControl} y la l\'ogica de navegaci\'on en \file{boat.ino}. Inclu\'ia ya
+una l\'ogica de navegaci\'on a vela (\'angulo relativo viento/rumbo, cambio de
+amura autom\'atico, orzar/arribar) y recepci\'on de waypoints por LoRa en JSON.
+
+\subsection{Problemas y limitaciones identificados}
+
+Al retomar el proyecto se identificaron varios problemas bloqueantes que, en conjunto con la nesesidad de nuevas features discutidas con el cliente y el profesor, motivaron la reescritura completa del firmware.
+
+\subsubsection{Biblioteca ESP32Servo --- conflicto LEDC / interrupciones}
+
+\begin{warningbox}
+  La biblioteca \texttt{ESP32Servo} utiliza el perif\'erico \textbf{LEDC} del ESP32.
+  LEDC es \textbf{incompatible} con la decodificaci\'on de PWM por interrupciones
+  GPIO usada para leer la radio: cuando LEDC est\'a activo, las interrupciones del
+  receptor RC se perturban y los canales le\'idos \textbf{vuelven constantemente a
+  cero}, aunque las se\~nales de entrada sean correctas en el oscilloscopio. Esto
+  hace imposible controlar los servos y leer la radio al mismo tiempo. Fue el
+  problema m\'as cr\'itico del proyecto.
+\end{warningbox}
+
+\subsubsection{Asignaci\'on de pines RC --- conflicto I2C / AXP192}
+
+\begin{warningbox}
+  El c\'odigo original asignaba canales RC a \gpio{21} y \gpio{22}, que son los
+  pines I2C internos del T-Beam usados por el AXP192 (gestor de energ\'ia).
+  Adem\'as, \gpio{23} est\'a conectado internamente al RESET del SX1276 (LoRa):
+  conectar una interrupci\'on en ese pin pod\'ia provocar resets esp\'ureos de la
+  radio.
+\end{warningbox}
+
+\subsubsection{Pin de bater\'ia \gpio{35} --- drenaje de 20~mA continuo}
+
+El T-Beam V1.1 tiene un divisor resistivo de \emph{baja impedancia}
+($\approx370~\Omega$ total) soldado de forma permanente en \gpio{35}. Aun sin leer
+el ADC, ese divisor consume $\approx20$~mA continuos ($\approx1{,}8$~W) directamente
+de la bater\'ia. \textbf{Nunca debe leerse \gpio{35}.}
+
+\subsubsection{Pin LoRa RST --- error de documentaci\'on}
+
+La documentaci\'on de LilyGO y muchos ejemplos indican \gpio{14} para el RESET del
+SX1276. El hardware del T-Beam V1.1 conecta f\'isicamente el RESET en \gpio{23}.
+
+\subsubsection{Gesti\'on de ESC --- sin armado ni limitaci\'on de variaci\'on}
+
+El c\'odigo original no implementaba ning\'una funcion del ESC dado que fue una feature a futuro, al igual que la medicion de bateria.
+
+% =============================================================================
+\section{PCB Versi\'on 1 --- Placa de interfaz original}
+% =============================================================================
+
+La primera placa realizaba la interfaz entre el T-Beam y los actuadores
+(conectores de 3 pines para servos/ESC, conectores RC, regulador reductor 5~V
+Pololu, bornes de potencia). Sus problemas se resumen a continuaci\'on.
+
+\begin{longtable}{L{3.5cm} L{9.5cm}}
+  \toprule
+  \rowcolor{tableheadbg}
+  \textcolor{tableheadfg}{\textbf{Problema}} &
+  \textcolor{tableheadfg}{\textbf{Impacto}} \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+  PWM 3,3~V sin amplificaci\'on de nivel & Servos y ESC (l\'ogica 5~V) pueden no
+    detectar correctamente los pulsos \\[3pt]
+  Pines RC en \gpio{21}/\gpio{22} & Conflicto I2C/AXP192 \\[3pt]
+  ESC en \gpio{32}/\gpio{33} & Coinciden con LoRa DIO1/DIO2 del T-Beam \\[3pt]
+  \gpio{35} para bater\'ia & Divisor de 370~$\Omega$ = 20~mA continuos \\[3pt]
+  Sin protecci\'on de polaridad & Riesgo ante alimentaci\'on incorrecta \\
+\end{longtable}
+
+% =============================================================================
+\section{Reescritura del firmware --- Arquitectura Post-Claude}
+% =============================================================================
+
+\subsection{Motivaciones}
+
+La reescritura completa busca corregir todas las limitaciones identificadas y
+preparar la arquitectura para las fases aut\'onomas. Objetivos:
+
+\begin{enumerate}
+  \item Usar \textbf{MCPWM} en lugar de LEDC para las salidas de actuadores.
+  \item Decodificaci\'on RC \textbf{enteramente por interrupciones} con protecci\'on ISR.
+  \item Arquitectura orientada a objetos en capas, extensible por fases.
+  \item Armado de ESC y limitaci\'on de variaci\'on (\emph{slew rate}).
+  \item Gesti\'on limpia de la energ\'ia v\'ia AXP192.
+  \item GPS, LoRa y bater\'ia funcionando simult\'aneamente.
+\end{enumerate}
+
+\subsection{Arquitectura en capas}
+
+\begin{lstlisting}[style=shell, caption={\'Arbol del proyecto (raiz = Post-Claude)}]
+Post-Claude/                   <- carpeta raiz del proyecto
+  main/main.ino                <- Punto de entrada (begin / update)
+  main/src/
+    app/DroneApp.cpp           <- Orquestador (scheduler por software)
+    config/BoardConfig.h       <- Asignacion de GPIO y umbrales RC
+    config/Calibration.h       <- Valores en microsegundos (servo/ESC)
+    core/Types.h               <- Tipos compartidos (RcFrame, ActuatorCommand)
+    control/ModeManager        <- CH5 -> modo de control
+    control/ManualController   <- Modo manual unificado (vela+timon+motor)
+    control/AutoController     <- Envoltura de la navegacion autonoma
+    drivers/RcReceiver         <- Lectura PWM por interrupciones
+    drivers/McpwmActuators     <- Salidas MCPWM (vela, timon, ESC)
+    drivers/AxpPower           <- Init AXP192 (rieles GPS/LoRa/3.3V)
+    drivers/BatteryAdc         <- ADC de tension de bateria
+    drivers/GpsUart            <- Lectura GPS (TinyGPSPlus + UBX)
+    drivers/LoRaRadio          <- Driver SX1276
+    comm/LoRaComm              <- Protocolo JSON LoRa (heartbeat + comandos)
+    navigation/                <- navigation.h, Navigator, MissionManager...
+  transceiver/transceiver.ino  <- Estacion terrena (puente USB <-> LoRa)
+  IHM/                         <- Interfaz web de estacion terrena (FastAPI)
+\end{lstlisting}
+
+El reparto sigue una l\'ogica clara: \emph{drivers} (hardware), \emph{servicios /
+comm} (datos), \emph{navigation} (geometr\'ia y misi\'on), \emph{control}
+(decisiones) y \emph{app} (orquestaci\'on). El planificador es cooperativo (sin
+RTOS): \file{DroneApp::update()} dispara cada tarea cuando su per\'iodo vence,
+evitando \texttt{delay()} que bloquear\'ia la lectura RF.
+
+\subsection{Decisiones t\'ecnicas fundamentales}
+
+\subsubsection{MCPWM obligatorio --- nunca LEDC}
+
+\begin{lstlisting}[style=cpp, caption={McpwmActuators.cpp -- inicializacion MCPWM}]
+bool McpwmActuators::begin() {
+    mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0A, BoardConfig::SAIL_SERVO_PIN);
+    mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM0B, BoardConfig::ROTOR_SERVO_PIN);
+    mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM1A, BoardConfig::ESC1_PIN);
+    mcpwm_config_t cfg = {};
+    cfg.frequency    = Calibration::PWM_FREQ_HZ;   // 50 Hz
+    cfg.duty_mode    = MCPWM_DUTY_MODE_0;          // activo alto
+    cfg.counter_mode = MCPWM_UP_COUNTER;
+    mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_0, &cfg);  // vela + timon
+    mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_1, &cfg);  // ESC
+    ...
+}
+\end{lstlisting}
+
+El perif\'erico MCPWM es independiente de las interrupciones GPIO: ambos coexisten
+sin perturbarse. Esta restricci\'on es \textbf{innegociable} en este proyecto.
+
+\subsubsection{Interrupciones RC con protecci\'on portMUX}
+
+\begin{lstlisting}[style=cpp, caption={RcReceiver.cpp -- ISR y seccion critica}]
+void IRAM_ATTR RcReceiver::handleEdge(uint8_t pin, Ch ch) {
+    const uint32_t now = micros();
+    const int      idx = static_cast<int>(ch);
+    if (gpio_get_level(static_cast<gpio_num_t>(pin))) {
+        portENTER_CRITICAL_ISR(&mux_);
+        riseUs_[idx] = now;                        // flanco de subida
+        portEXIT_CRITICAL_ISR(&mux_);
+    } else {
+        uint32_t rise;
+        portENTER_CRITICAL_ISR(&mux_);
+        rise = riseUs_[idx];
+        portEXIT_CRITICAL_ISR(&mux_);
+        const uint32_t width = now - rise;         // ancho de pulso
+        if (width >= RC_VALID_MIN_US && width <= RC_VALID_MAX_US) {
+            portENTER_CRITICAL_ISR(&mux_);
+            pulseUs_[idx]     = static_cast<uint16_t>(width);
+            lastValidUs_[idx] = now;
+            portEXIT_CRITICAL_ISR(&mux_);
+        }
+    }
+}
+\end{lstlisting}
+
+Las ISR se ubican en RAM (\texttt{IRAM\_ATTR}) y se sincronizan con la
+boucle principal mediante \texttt{portMUX} (mecanismo FreeRTOS apropiado para el
+ESP32 dual-core). Un \emph{timeout} de 100~ms marca un canal como perdido.
+
+\subsubsection{Todas las consignas de actuadores en microsegundos}
+
+Todos los actuadores se comandan exclusivamente en microsegundos, nunca en grados.
+Esto elimina una capa de conversi\'on propensa a errores y corresponde
+directamente al protocolo PWM de servos y ESC.
+
+\subsubsection{Slew rate --- protecci\'on contra tirones}
+
+\begin{lstlisting}[style=cpp, caption={McpwmActuators.cpp -- limitacion de variacion}]
+uint16_t McpwmActuators::slew(uint16_t current, uint16_t target, uint16_t step) {
+    if (current < target) {
+        uint32_t next = (uint32_t)current + step;
+        return (next >= target) ? target : (uint16_t)next;
+    }
+    if (current > target)
+        return (current > target + step) ? (uint16_t)(current - step) : target;
+    return current;
+}
+// ESC_SLEW_US = 30 us/tick, llamado cada 20 ms -> max 1500 us/s
+\end{lstlisting}
+
+% =============================================================================
+\section{Fase 1 --- Control manual por radio}
+% =============================================================================
+
+\subsection{Realizaci\'on}
+
+La Fase~1 cubre el control manual completo. Se implementaron los drivers
+(\file{AxpPower}, \file{RcReceiver}, \file{McpwmActuators}), el \file{ModeManager},
+el \file{ManualController} y el orquestador \file{DroneApp} (ticks de 20~ms para
+control, 200~ms para debug, 1~s para LoRa).
+
+\subsection{Modos de vuelo (selector CH5) --- versi\'on unificada actual}
+
+El selector de 3 posiciones est\'a cableado en CH5. La distribuci\'on de modos fue
+\textbf{reorganizada} respecto a la versi\'on inicial (que ten\'ia dos modos
+manuales separados ``ManualServo'' y ``ManualProp''):
+
+\begin{longtable}{C{2.6cm} C{2.4cm} L{8cm}}
+  \toprule
+  \rowcolor{tableheadbg}
+  \textcolor{tableheadfg}{\textbf{CH5}} &
+  \textcolor{tableheadfg}{\textbf{Modo}} &
+  \textcolor{tableheadfg}{\textbf{Comportamiento}} \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+  $\leq$ \us{1250} & Automatic & Navegaci\'on aut\'onoma (sigue la misi\'on LoRa) \\[3pt]
+  1400--1600 & Sail & \textbf{Inerte}: todas las salidas en neutro \\[3pt]
+  $>$ \us{1800} & Manual & Modo manual \textbf{unificado} (ver abajo) \\[3pt]
+  Se\~nal perdida & Failsafe & Sigue la misi\'on aut\'onoma (como Automatic) \\
+\end{longtable}
+
+\begin{warningbox}
+  \textbf{Atenci\'on de seguridad:} en p\'erdida de RC el sistema entra en
+  \emph{Failsafe}, que se comporta como el modo aut\'onomo (navega solo). Como el
+  modo aut\'onomo nunca se prob\'o en el agua, el \textbf{primer ensayo real debe
+  ser manual} y con plan de recuperaci\'on.
+\end{warningbox}
+
+\subsection{Modo manual unificado}
+
+Un \'unico modo (\texttt{computeManual}) controla a la vez la vela, el tim\'on y el
+propulsor:
+
+\begin{itemize}
+  \item \textbf{CH2 $\to$ vela (binaria):} banda muerta $\pm35$~\textmu s alrededor
+    de \us{1500}. El primer frame inicializa el estado desde la posici\'on del
+    manche para evitar un salto al entrar en el modo. Dentro de la banda muerta se
+    mantiene el \'ultimo estado.
+  \item \textbf{CH4 $\to$ tim\'on (posicional):} el recorrido medido CH4
+    (1180--1790~\textmu s) se mapea al rango f\'isico del winch
+    (\texttt{ROTOR\_MIN/MAX\_US} = 1417--1583~\textmu s, $\pm90^{\circ}$). Banda muerta
+    central que fija el centro exacto (\us{1500}).
+  \item \textbf{CH3 $\to$ propulsor (bidireccional, ver Secci\'on~\ref{sec:bidir}).}
+\end{itemize}
+
+\begin{lstlisting}[style=cpp, caption={ManualController -- logica de vela binaria con estado memorizado}]
+if (!sailStateInitialized_) {
+    sailState_ = (frame.ch2 >= RC_MID_US) ? +1 : -1;
+    sailStateInitialized_ = true;
+}
+if (frame.ch2 > RC_MID_US + db)      sailState_ = +1;
+else if (frame.ch2 < RC_MID_US - db) sailState_ = -1;
+cmd.sailUs = (sailState_ > 0) ? SAIL_PLUS_US : SAIL_MINUS_US;
+\end{lstlisting}
+
+\subsection{Propulsor bidireccional (marcha adelante / atr\'as)}
+\label{sec:bidir}
+
+En la versi\'on inicial el motor solo iba de 0 a 100~\% (control inverso, con el
+ESC en modo unidireccional, \us{1000} = paro). Se modific\'o para que el motor vaya
+de \textbf{$+100~\%$ (adelante) a $-100~\%$ (atr\'as)} usando el ESC en modo
+\textbf{bidireccional}, en el que el neutro pasa a \us{1500}:
+
+\begin{longtable}{C{4.5cm} C{3cm} L{5cm}}
+  \toprule
+  \rowcolor{tableheadbg}
+  \textcolor{tableheadfg}{\textbf{Posici\'on del manche CH3}} &
+  \textcolor{tableheadfg}{\textbf{Potencia}} &
+  \textcolor{tableheadfg}{\textbf{ESC}} \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+  \texttt{CH3\_FULL\_US} (\us{1100}) & $+100~\%$ adelante & \us{2000} \\[3pt]
+  \texttt{CH3\_CENTER\_US} (\us{1545}) $\pm$ banda muerta & 0~\% paro & \us{1500} \\[3pt]
+  \texttt{CH3\_ZERO\_US} (\us{1990}) & $-100~\%$ atr\'as & \us{1000} \\
+\end{longtable}
+
+Como el manche de gas es de tipo \emph{trinquete} (no se autocentra), el paro se
+ubica en el centro de su recorrido con una banda muerta
+(\texttt{ESC\_CENTER\_DEADBAND\_US} $=40$~\textmu s). Para mantener coherente todo el
+firmware, el neutro \us{1500} se usa tambi\'en en el arranque, en Failsafe, en el
+modo Sail y como paro del modo aut\'onomo; el l\'imite inferior de saturaci\'on se
+baj\'o a \us{1000} para permitir la marcha atr\'as.
+
+\begin{warningbox}
+  La marcha atr\'as solo funciona f\'isicamente si el ESC est\'a \textbf{programado
+  en modo bidireccional} con la tarjeta EPRG-3. Si no, todo valor por debajo de
+  \us{1500} se ignora y solo se obtiene marcha adelante.
+\end{warningbox}
+
+\subsection{Resultados de las pruebas --- Fase 1}
+
+\begin{itemize}
+  \item \done\ Aler\'on conmuta correctamente entre \us{1465} y \us{1575}.
+  \item \done\ Tim\'on responde proporcionalmente al manche CH4.
+  \item \done\ Failsafe se dispara en menos de 100~ms tras la p\'erdida de se\~nal.
+  \item \done\ Compilaci\'on \texttt{arduino-cli}: $\approx$28~\% flash, 7~\% RAM.
+  \item \todo\ Calibraci\'on de banco de \texttt{SAIL\_PLUS/MINUS\_US} y de
+    \texttt{CH3\_CENTER\_US} pendiente.
+\end{itemize}
+
+% =============================================================================
+\section{Fase 2 --- GPS y navegaci\'on}
+% =============================================================================
+
+Se implementaron \file{GpsUart} (Serial1 en \gpio{34}/\gpio{12}, TinyGPSPlus),
+\file{Navigator} (haversine: distancia y rumbo), \file{MissionPlan} (hasta 16
+waypoints) y \file{MissionManager} (m\'aquina de estados
+Idle$\to$Running$\to$Returning$\to$Complete). Dos problemas cr\'iticos de GPS se
+resolvieron en esta fase.
+
+\subsection{Problema cr\'itico --- GPS mudo tras configuraci\'on en flash}
+
+\begin{warningbox}
+  \textbf{S\'intoma:} el contador \texttt{chars} se queda bloqueado, el GPS est\'a
+  alimentado pero no produce ninguna frase NMEA.
+
+  \textbf{Causa:} una sesi\'on previa (IDE Arduino o u-center) guard\'o en la flash
+  interna del NEO-6M una configuraci\'on CFG-PRT que desactiva la salida NMEA. Esa
+  configuraci\'on sobrevive a los cortes de alimentaci\'on.
+\end{warningbox}
+
+\begin{okbox}
+  Enviar un reset de f\'abrica \texttt{UBX CFG-CFG} al arrancar (borra la
+  configuraci\'on de flash y carga los valores de ROM). Implementado en
+  \file{GpsUart::begin()}.
+\end{okbox}
+
+\subsection{Problema cr\'itico --- antena activa sin alimentaci\'on}
+\label{subsec:antena}
+
+\begin{warningbox}
+  \textbf{S\'intoma:} NMEA recibido pero \texttt{visible = 0} sat\'elites incluso
+  en exterior despejado y con antena externa conectada.
+
+  \textbf{Causa:} el supervisor de antena del NEO-6M est\'a desactivado por
+  defecto. Sin activarlo, no se entrega tensi\'on de polarizaci\'on al LNA de la
+  antena activa y el conmutador RF del T-Beam permanece en la antena cer\'amica
+  interna, cortocircuitando el conector u.FL.
+\end{warningbox}
+
+\begin{okbox}
+  Enviar \texttt{UBX CFG-ANT} con \texttt{flags = 0x001B} (control de tensi\'on RF,
+  detecci\'on de cortocircuito, recuperaci\'on). Tras la correcci\'on: fix en menos
+  de 60~s, 7 sat\'elites, HDOP $\approx$2,2.
+\end{okbox}
+
+\subsection{Nota sobre el arranque en fr\'io}
+
+Sin bater\'ia LiPo conectada, cada encendido pierde el almanaque GPS: el arranque
+en fr\'io tarda $\approx$2~min en exterior. Con bater\'ia se conservan las
+ef\'emerides y el fix se obtiene en segundos (arranque en caliente).
+
+% =============================================================================
+\section{Fase 3 --- LoRa y telemetr\'ia}
+% =============================================================================
+
+Se implement\'o el driver \file{LoRaRadio} (SX1276, SPI HSPI, 433~MHz), la capa de
+protocolo \file{LoRaComm} (heartbeat JSON a 1~Hz + despachador de comandos) y el
+sketch de estaci\'on terrena \file{transceiver.ino} (puente USB$\leftrightarrow$LoRa
+con CLI compacta). Todo verificado en hardware (RSSI $-101$ a $-106$~dBm a corta
+distancia).
+
+\subsection{Protocolo JSON --- heartbeat actual}
+
+El formato se afin\'o para mantenerse holgadamente por debajo del l\'imite de
+255~bytes de la FIFO del SX1276 (se eliminaron campos redundantes, se a\~nadieron
+indicadores de salud GPS/RC, y el RSSI lo inyecta el transceptor en tierra):
+
+\begin{lstlisting}[style=json, caption={Heartbeat dron -> tierra (1 Hz)}]
+{"origin":"boat","type":"info","message":{
+  "mode":"standby|route-ready|navigate",
+  "location":[48.36000,-4.56000],
+  "servos":{"sail":10,"rudder":-12},
+  "heading":270,"wind":180,"bat":7.42,
+  "fix":1,"sat":7,"hdop":2.2,"rc":1,
+  "wt":3,"wc":1,"wobs":42,"rssi":-104}}
+\end{lstlisting}
+
+\begin{itemize}
+  \item \texttt{servos.sail} $=\pm10^{\circ}$ (binaria); \texttt{servos.rudder} en
+    grados del winch. \texttt{fix/sat/hdop} = salud GPS; \texttt{rc}=1 si el
+    receptor entrega pulsos.
+  \item \texttt{wt/wc} = waypoints total/actual. \texttt{wobs} = progreso de la
+    medici\'on de viento (0--100~\%), presente \emph{solo} mientras se mide.
+  \item \texttt{rssi} \textbf{no} lo env\'ia el barco: lo inyecta el transceptor en
+    tierra, por lo que no cuenta en el presupuesto de 255~bytes.
+\end{itemize}
+
+\subsection{Comandos (tierra $\to$ dron)}
+
+\begin{lstlisting}[style=json, caption={Comandos soportados}]
+{"origin":"server","type":"command","message":{"navigate":true}}
+{"origin":"server","type":"command","message":{"stop":true}}
+{"origin":"server","type":"command","message":{"restart":true}}
+{"origin":"server","type":"command","message":{"wind-observation":true}}
+{"origin":"server","type":"command","message":{"wind-command":{"value":225}}}
+{"origin":"server","type":"command","message":{"home":{"lat":48.36,"lon":-4.56}}}
+{"origin":"server","type":"command","message":
+  {"waypoints":{"number":2,"points":"48.36,-4.56,48.37,-4.55"}}}
+\end{lstlisting}
+
+\begin{infobox}[Nota sobre el TX bloqueante]
+  \texttt{LoRa.endPacket()} es s\'incrono. A SF7/BW125~kHz, un paquete de
+  $\approx$210~bytes tarda $\approx$450~ms, bloqueando la boucle principal una vez
+  por segundo. Aceptable por ahora; conviene pasar a TX as\'incrono antes de la
+  navegaci\'on aut\'onoma en agua si el jitter del lazo de control se vuelve
+  cr\'itico.
+\end{infobox}
+
+% =============================================================================
+\section{PCB Versi\'on 2 --- Mejoras de hardware}
+% =============================================================================
+
+La V2 del PCB corrige todos los problemas de la V1 e incorpora los aprendizajes
+del desarrollo de software.
+
+\subsection{Correspondencia de pines (PCB V2)}
+
+\begin{longtable}{C{3cm} C{1.6cm} L{7.5cm}}
+  \toprule
+  \rowcolor{tableheadbg}
+  \textcolor{tableheadfg}{\textbf{Se\~nal}} &
+  \textcolor{tableheadfg}{\textbf{GPIO}} &
+  \textcolor{tableheadfg}{\textbf{Notas}} \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+  RC CH2 (aler\'on) & 39 & SVN, solo entrada \\[2pt]
+  RC CH3 (gas) & 14 & Liberado (ya no comparte I2C) \\[2pt]
+  RC CH4 (tim\'on) & 13 & Liberado \\[2pt]
+  RC CH5 (modo) & 4 & Conmutador 3 posiciones \\[2pt]
+  Servo vela (PWM1) & 2 & V\'ia transistor BC548 \\[2pt]
+  Servo tim\'on (PWM2) & 25 & V\'ia transistor BC548 \\[2pt]
+  ESC1 & 15 & V\'ia transistor BC548 (\'unico ESC) \\[2pt]
+  ADC bater\'ia & 36 & SVP, ADC1\_CH0, solo entrada \\[2pt]
+  LoRa SCK/MISO/MOSI/CS & 5/19/27/18 & SPI HSPI \\[2pt]
+  LoRa RST & 23 & Ahora libre (CH6 eliminado) \\[2pt]
+  LoRa IRQ (DIO0) & 26 & \\[2pt]
+  GPS RX / TX & 34 / 12 & Serial1 \\[2pt]
+  I2C SDA / SCL & 21 / 22 & AXP192 interno + \textbf{conector de expansi\'on} \\
+\end{longtable}
+
+\subsection{Amplificaci\'on de nivel l\'ogico --- transistores BC548}
+\label{subsec:bc548}
+
+Las salidas PWM del ESP32 son de 3,3~V; los servos esperan 5~V. La V2 usa
+transistores NPN BC548 en emisor com\'un.
+
+\begin{infobox}[Descubrimiento importante --- DUTY\_MODE\_0 en ambos canales]
+  Inicialmente el canal del tim\'on (OPR\_B) usaba \texttt{MCPWM\_DUTY\_MODE\_1}
+  (inversi\'on), suponiendo que el NPN invert\'ia la se\~nal y hab\'ia que
+  preinvertir. En realidad el montaje BC548 ya invierte; aplicar
+  \texttt{DUTY\_MODE\_1} produc\'ia una \textbf{doble inversi\'on} que dejaba el
+  servo del tim\'on inoperante. La soluci\'on es usar \texttt{DUTY\_MODE\_0}
+  (activo alto) en \textbf{ambos} canales.
+\end{infobox}
+
+\subsection{Medici\'on de bater\'ia --- divisor de alta impedancia}
+
+Se usa un divisor R5 $=562$~k$\Omega$ / R6 $=120$~k$\Omega$ (raz\'on $5{,}683$) en
+\gpio{36} con atenuaci\'on de 11~dB. A 7,4~V el divisor consume
+$\approx10{,}9$~\textmu A, despreciable.
+
+\begin{warningbox}
+  \textbf{Detalle de montaje:} en una placa las resistencias se soldaron
+  invertidas (120~k arriba, 562~k abajo), dando una lectura de 17,9~V en lugar de
+  $\approx$5~V. El c\'odigo era correcto; la soluci\'on fue invertir f\'isicamente
+  las resistencias.
+\end{warningbox}
+
+\subsection{AXP192 --- I2C persistente}
+
+En la V1 se llamaba \texttt{Wire.end()} tras inicializar el AXP192 para liberar
+\gpio{21}/\gpio{22}. En la V2 esos pines quedan libres para I2C, por lo que
+\texttt{Wire.end()} se elimina: el bus I2C permanece activo y disponible para
+futuros sensores en el conector de expansi\'on.
+
+% =============================================================================
+\section{Navegaci\'on aut\'onoma (Fases 5 y 6)}
+% =============================================================================
+
+\subsection{Fase 5 --- Estimaci\'on de viento desde el track GPS}
+
+Sin sensor de viento, la direcci\'on se infiere navegando sobre una amura fija:
+el barco fija la vela en $+10^{\circ}$, suaviza el rumbo GPS con una media m\'ovil
+circular y, tras recorrer \texttt{WIND\_OBS\_DISTANCE\_M} $=30$~m, fija el viento
+en \texttt{rumbo\_suavizado $+ 90^{\circ}$}. Tambi\'en existe un comando LoRa
+\texttt{wind-command} para forzar la direcci\'on manualmente (respaldo fiable).
+
+\begin{warningbox}
+  El desfase de $+90^{\circ}$ y el umbral de 30~m necesitan validaci\'on en campo.
+  Adem\'as, durante la medici\'on el heartbeat se ve igual que en reposo salvo por
+  el campo \texttt{wobs}.
+\end{warningbox}
+
+\subsection{Fase 6 --- Algoritmo de navegaci\'on a vela}
+
+El algoritmo de navegaci\'on (\file{navigation.h}) fue desarrollado por un
+compa\~nero del grupo (rama \texttt{Testautoboat} del repositorio
+\texttt{DeltaGod/PER\_MEA\_LYINCROYAP}) e integrado en este firmware. Implementa:
+
+\begin{itemize}
+  \item Zonas prohibidas de ce\~nida y empopada (\emph{upwind/downwind}) con
+    zigzag de bordeo.
+  \item Evitaci\'on de trasluchada (\emph{empannage}) mediante una m\'aquina de
+    estados.
+  \item Corredor de tolerancia lateral (\emph{cross-track}) alrededor de la l\'inea
+    al waypoint.
+  \item Orzar/arribar (\emph{lofer/abattre}) para el seguimiento fino de rumbo.
+\end{itemize}
+
+La \'ultima versi\'on integrada aporta: selecci\'on de amura inicial m\'as
+inteligente (\texttt{nav\_sideMovingTowardWaypoint}, que elige el lado que m\'as
+progresa hacia el waypoint), detecci\'on de llegada por ``plano del waypoint
+superado dentro del corredor'' (\texttt{nav\_hasPassedWaypoint}) y un corredor por
+defecto ampliado de 20 a 100~m. La envoltura \file{AutoController} mapea el rumbo
+de tim\'on del algoritmo 1:1 a grados f\'isicos del winch, limitado a
+$\pm20^{\circ}$ (\texttt{ROTOR\_AUTO\_RANGE\_DEG}), ya que el $\pm90^{\circ}$ completo
+resultaba demasiado agresivo.
+
+\begin{warningbox}
+  La navegaci\'on aut\'onoma est\'a \textbf{codificada pero nunca probada en el
+  agua} y no tiene pruebas unitarias. Falta tambi\'en un \emph{WinchTracker}: el
+  Regatta ECO II no tiene realimentaci\'on de posici\'on, por lo que la posici\'on
+  real del tim\'on no se conoce (ver Secci\'on~\ref{sec:abiertos}).
+\end{warningbox}
+
+% =============================================================================
+\section{Interfaz de estaci\'on terrena (IHM)}
+% =============================================================================
+
+La estaci\'on terrena consta de un segundo T-Beam con \file{transceiver.ino}
+(puente USB$\leftrightarrow$LoRa) y una aplicaci\'on web (\file{IHM/}) en Python
+FastAPI + MongoDB + un mapa Leaflet. Funciones principales:
+
+\begin{itemize}
+  \item Mapa con posici\'on del barco, waypoints (clic para definirlos), env\'io de
+    ruta y \emph{polling} de telemetr\'ia a 1~Hz.
+  \item Panel de salud con sem\'aforos (Enlace, GPS, Bater\'ia, RC, Control) y RSSI.
+  \item Br\'ujula de viento y predicci\'on de trayectoria (r\'eplica en JavaScript
+    de \file{navigation.h}).
+  \item Barra de progreso de la medici\'on de viento.
+  \item Autodetecci\'on del puerto del transceptor por n\'umero de serie del
+    CP2104 (transceptor $=$ \texttt{01C00B54}, barco $=$ \texttt{02126CF1}).
+\end{itemize}
+
+% =============================================================================
+\section{Problemas resueltos y soluciones detalladas}
+% =============================================================================
+
+Esta secci\'on re\'une, de forma exhaustiva, los problemas significativos
+encontrados durante el desarrollo y c\'omo se resolvieron.
+
+\subsection{Alimentaci\'on del T-Beam --- imposible alimentar desde los pines}
+\label{sec:alim}
+
+\begin{warningbox}
+  \textbf{Problema:} el T-Beam V1.1 \textbf{no se puede alimentar
+  inyectando 5~V por los pines del header de expansi\'on}. Las \'unicas v\'ias de
+  alimentaci\'on v\'alidas son el \textbf{portabater\'ias 18650/LiPo} (conector
+  JST de la propia placa) y el \textbf{puerto USB}. El PCB V2, en cambio, fue
+  dise\~nado para alimentar el T-Beam a trav\'es del pin \texttt{+5V} del header de
+  expansi\'on (salida del regulador reductor Pololu).
+
+  El motivo es la topolog\'ia interna de energ\'ia del T-Beam: el pin \texttt{+5V}
+  del header est\'a situado en el camino del VBUS de USB, despu\'es del diodo de
+  protecci\'on, y \textbf{no entra de forma fiable al AXP192} (el PMIC que habilita
+  los rieles de 3,3~V, GPS y LoRa). En consecuencia, alimentando solo por ese pin
+  el AXP192 a menudo \textbf{no arranca}, y bajo carga la tensi\'on se desploma
+  (se observ\'o el barco corriendo a $\approx$0,81~V, claramente en
+  \emph{brownout}), lo que adem\'as provoca la re-enumeraci\'on continua del
+  conversor USB-serie (mensajes de kernel \texttt{cp210x ... status -19}).
+\end{warningbox}
+
+\begin{okbox}
+  \textbf{Soluci\'on r\'apida adoptada:} se cort\'o un cable USB-A~$\to$~USB-C; el
+  extremo USB-A (l\'ineas \texttt{+5V} y \texttt{GND}) se \textbf{sold\'o
+  directamente al riel de 5~V del PCB} (salida del Pololu), y el extremo USB-C se
+  conecta al puerto USB del T-Beam. As\'i, la energ\'ia del PCB entra al T-Beam por
+  su \textbf{camino de alimentaci\'on USB v\'alido} (VBUS $\to$ AXP192), en lugar de
+  por el pin \texttt{+5V} del header, que no era capaz de arrancar el PMIC.
+
+  \textbf{Recomendaci\'on:} esta soluci\'on es un \emph{parche} funcional pero poco
+  elegante (un cable USB soldado al riel). Una correcci\'on definitiva en una
+  futura revisi\'on del PCB ser\'ia rutear la alimentaci\'on del PCB directamente a
+  la entrada correcta del T-Beam (VBUS o el JST de bater\'ia), evitando el pin
+  \texttt{+5V} del header.
+\end{okbox}
+
+\subsection{Motor que funciona ``a impulsos'' --- corte por baja tensi\'on}
+\label{subsec:lvc}
+
+\begin{warningbox}
+  \textbf{S\'intoma:} con la bater\'ia a $\approx$7~V (seg\'un telemetr\'ia) el
+  motor no gira de forma continua: arranca un instante, se corta, y solo vuelve a
+  funcionar si se lleva el mando a 0~\% y luego de nuevo a 100~\% un tiempo
+  despu\'es.
+
+  \textbf{Causa (no es un error de software):} es el \textbf{corte por baja
+  tensi\'on (LVC)} del ESC. Una bater\'ia 2S a 7~V est\'a ya baja
+  ($\approx$3,5~V/celda); bajo la carga del motor la tensi\'on cae por debajo del
+  umbral de corte del ESC ($\approx$3,0--3,2~V/celda) y el ESC corta el motor para
+  proteger el pack. Sin carga la tensi\'on se recupera, el corte se rearma y el
+  motor vuelve a girar un momento, produciendo justamente el comportamiento ``a
+  impulsos''. El efecto empeora mucho si el ESC tiene mal configurado el n\'umero
+  de celdas.
+\end{warningbox}
+
+\begin{okbox}
+  \textbf{Soluci\'on:} encadenar en serie 2 baterias LiPo ($\approx$15,4~V).
+  Ning\'un cambio de c\'odigo corrige un corte por baja tensi\'on; el firmware
+  env\'ia una consigna estable.
+\end{okbox}
+
+\subsection{Fallo al programar el barco --- brownout durante el flash}
+
+\begin{warningbox}
+  \textbf{S\'intoma:} la programaci\'on falla repetidamente (``\emph{chip stopped
+  responding}'', ``\emph{No serial data received}'') y el CP2104 se re-enumera en
+  mitad de la escritura. Esto solo pasa cuando la T-Beam esta conectada directamente al PCB.
+
+  \textbf{Causa:} el mismo \emph{brownout} de alimentaci\'on. El pico de corriente
+  del borrado/escritura de flash desploma la tensi\'on y el ESP32 se resetea.
+\end{warningbox}
+
+\begin{okbox}Desconectar la T-beam del PCB, Programarla y sin desconectarla del USB volver a colocarla en el PCB.
+\end{okbox}
+
+\subsection{Otros problemas de firmware ya resueltos}
+
+\subsubsection{DUTY\_MODE\_1 en OPR\_B --- servo del tim\'on inoperante}
+
+Doble inversi\'on a trav\'es del BC548 (ver Secci\'on~\ref{subsec:bc548}). Soluci\'on:
+\texttt{DUTY\_MODE\_0} en ambos canales.
+
+\subsubsection{Umbral de armado de ESC demasiado bajo}
+
+El m\'inimo real del manche de gas del PTR-6A es $\approx$\us{1265}, por lo que el
+umbral de armado de \us{1050} nunca se alcanzaba. Se subi\'o a \us{1300}.
+\textbf{Nota:} el gesto de armado se \textbf{elimin\'o} despu\'es, al pasar al modo
+manual unificado y al control bidireccional (era incompatible con el nuevo mapeo
+del gas).
+
+\subsubsection{Modo bloqueado en Automatic --- confusi\'on CH4/CH5}
+
+La versi\'on inicial le\'ia CH4 para el modo, cuando el conmutador est\'a en CH5.
+Soluci\'on: leer \texttt{frame.ch5}.
+
+\subsubsection{Puerto serie ocupado al programar}
+
+Un monitor serie o script Python manten\'ia el puerto abierto
+(\texttt{Errno 16: Device or resource busy}). Soluci\'on: cerrar el monitor o
+\texttt{fuser /dev/ttyUSB0} y matar el proceso.
+
+% =============================================================================
+\section{Problemas que encontramos --- opciones de mejora}
+\label{sec:abiertos}
+% =============================================================================
+
+Esta secci\'on re\'une los problemas a\'un \textbf{abiertos} y, para cada uno, la
+opci\'on de mejora propuesta para resolverlo. Son las l\'ineas de trabajo
+prioritarias para que el dron pueda cumplir realmente su misi\'on.
+
+\subsection{Alcance de LoRa muy pobre dentro de la caja de electr\'onica}
+
+\begin{warningbox}
+  \textbf{Problema:} con la antena LoRa actual ubicada \textbf{dentro de la caja de
+  electr\'onica}, el alcance de radio es muy pobre. La caja act\'ua como pantalla y
+  la proximidad de la electr\'onica degrada el patr\'on de radiaci\'on, reduciendo
+  dr\'asticamente el RSSI y el rango \'util de telemetr\'ia y comandos.
+\end{warningbox}
+
+\begin{okbox}
+  \textbf{Mejora propuesta:} adquirir una \textbf{antena LoRa externa} (433~MHz) y
+  ubicarla \textbf{sobre el m\'astil principal}, lo m\'as alta y despejada posible,
+  fuera de la caja. Esto mejora la l\'inea de vista y aleja la antena de las masas
+  met\'alicas y del ruido de la electr\'onica.
+
+  \textbf{A considerar --- conector:} hay que verificar el conector de la antena y
+  del m\'odulo. El SX1276 del T-Beam suele exponer \textbf{u.FL/IPEX}, mientras que
+  las antenas externas de 433~MHz traen habitualmente \textbf{SMA}. Ser\'a
+  necesario el \textbf{cable adaptador / pigtail correspondiente (u.FL~$\to$~SMA)} y
+  cuidar que sea de 433~MHz (no de 2,4~GHz) para no degradar la adaptaci\'on.
+\end{okbox}
+
+\subsection{Inconsistencias del GPS}
+
+\begin{warningbox}
+  \textbf{Problema:} el GPS presenta inconsistencias (fix intermitente,
+  pocos sat\'elites, posici\'on poco estable), agravadas por la ubicaci\'on de la
+  antena dentro o cerca de la caja y la electr\'onica.
+\end{warningbox}
+
+\begin{okbox}
+  \textbf{Mejora propuesta:} adquirir \textbf{otra antena externa, esta vez de
+  GPS}, y ubicarla \textbf{sobre la cubierta}, con vista despejada del cielo y lejos
+  de la antena LoRa y de la electr\'onica.
+
+  \textbf{A considerar --- conector:} igual que con LoRa, hay que verificar el
+  conector. La entrada de antena GPS del NEO-6M es \textbf{u.FL}; las antenas GPS
+  activas suelen venir con \textbf{SMA} o directamente con cable u.FL. Habr\'a que
+  prever el \textbf{adaptador adecuado} y confirmar que la antena sea
+  \textbf{activa} (el supervisor de antena ya est\'a habilitado por software, ver
+  Secci\'on~\ref{subsec:antena}).
+\end{okbox}
+
+\subsection{Sin medici\'on de viento ni de la posici\'on de la vela}
+
+\begin{warningbox}
+  \textbf{Problema:} el esquema actual \textbf{no mide de d\'onde viene el viento}
+  ni \textbf{la posici\'on real de la vela}. Como el winch del tim\'on (Regatta ECO
+  II) tampoco tiene realimentaci\'on de posici\'on, \textbf{no es posible conocer la
+  posici\'on real del tim\'on / safran} ni cerrar el lazo de control con datos
+  reales: toda la navegaci\'on aut\'onoma depende de estimaciones (viento deducido
+  del track GPS, posici\'on de tim\'on supuesta a partir de la consigna).
+\end{warningbox}
+
+\begin{okbox}
+  \textbf{Mejora propuesta:} conseguir \textbf{2 sensores} que midan
+  respectivamente la \textbf{direcci\'on del viento} y la \textbf{posici\'on de la
+  vela}, y conectarlos al \textbf{bus I2C de la placa} a trav\'es del
+  \textbf{conector ya previsto en el PCB} (\gpio{21}/\gpio{22}, que el firmware
+  dej\'o libres al eliminar \texttt{Wire.end()}). Con la direcci\'on del viento real
+  y la posici\'on real de la vela, s\'i ser\'ia posible deducir la posici\'on
+  efectiva del tim\'on y cerrar correctamente el lazo de navegaci\'on.
+
+  \textbf{Ventaja arquitect\'onica:} el firmware ya reserva el bus I2C y el PCB ya
+  expone el conector de expansi\'on, por lo que la integraci\'on el\'ectrica es
+  directa; faltar\'ia el driver \file{SensorBus} en software.
+\end{okbox}
+
+\subsection{Poco espacio para las bater\'ias en la caja}
+
+\begin{warningbox}
+  \textbf{Problema:} la caja de electr\'onica tiene \textbf{poco espacio para las
+  bater\'ias}, lo que limita la capacidad embarcada y, por tanto, la autonom\'ia y
+  el margen de tensi\'on bajo carga (relacionado directamente con el corte por baja
+  tensi\'on de la Secci\'on~\ref{subsec:lvc}).
+\end{warningbox}
+
+\begin{okbox}
+  \textbf{Mejora propuesta:} revisar el dise\~no mec\'anico de la caja para alojar
+  un pack de mayor capacidad (o una mejor distribuci\'on de las celdas), teniendo
+  en cuenta adem\'as el espacio que ocupar\'an los nuevos sensores y los conectores
+  de las antenas externas. Conviene dimensionar el pack para mantener la tensi\'on
+  por encima del umbral LVC del ESC durante toda la misi\'on.
+\end{okbox}
+
+% =============================================================================
+\section{Estado actual del sistema}
+% =============================================================================
+
+\begin{longtable}{C{1.4cm} L{5.3cm} C{2.6cm} L{3.6cm}}
+  \toprule
+  \rowcolor{tableheadbg}
+  \textcolor{tableheadfg}{\textbf{Fase}} &
+  \textcolor{tableheadfg}{\textbf{Objetivo}} &
+  \textcolor{tableheadfg}{\textbf{Estado}} &
+  \textcolor{tableheadfg}{\textbf{Notas}} \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+  1 & Control manual RC & \done\ Completo & Modo unificado + motor bidireccional \\[3pt]
+  2 & GPS + navegaci\'on & \done\ Completo & Fix probado en exterior \\[3pt]
+  3 & LoRa + telemetr\'ia & \done\ Completo & TX/RX verificados \\[3pt]
+  PCB V2 & Cableado nuevo + I2C libre & \done\ Completo & Compilado y probado \\[3pt]
+  5 & Estimaci\'on de viento & \done\ Codificado & Sin validar en agua \\[3pt]
+  6 & Navegaci\'on aut\'onoma & \done\ Codificado & Sin probar en agua, sin tests \\[3pt]
+  4 & Sensores I2C & \todo\ Pendiente & Ver Secci\'on~\ref{sec:abiertos} \\[3pt]
+  7 & Registro / misi\'on completa & \todo\ Pendiente & SPIFFS, propulsi\'on auto \\
+\end{longtable}
+
+\subsection{Valores de calibraci\'on actuales (resumen)}
+
+\begin{longtable}{L{5cm} C{2.4cm} L{5cm}}
+  \toprule
+  \rowcolor{tableheadbg}
+  \textcolor{tableheadfg}{\textbf{Par\'ametro}} &
+  \textcolor{tableheadfg}{\textbf{Valor}} &
+  \textcolor{tableheadfg}{\textbf{Notas}} \\
+  \midrule
+  \endhead
+  \bottomrule
+  \endfoot
+  \texttt{SAIL\_CENTER\_US} & \us{1520} & Centro Futaba (no 1500) \\[2pt]
+  \texttt{SAIL\_PLUS/MINUS\_US} & 1575 / 1465 & $\pm10^{\circ}$ --- calibrar en banco \\[2pt]
+  \texttt{ROTOR\_MIN/MAX\_US} & 1417 / 1583 & $\pm90^{\circ}$ f\'isico (manual) \\[2pt]
+  \texttt{ROTOR\_AUTO\_RANGE\_DEG} & $20^{\circ}$ & Recorrido usado en auto \\[2pt]
+  \texttt{ESC\_REVERSE\_MIN\_US} & \us{1000} & $-100~\%$ (atr\'as, bidireccional) \\[2pt]
+  \texttt{ESC\_NEUTRAL\_US} & \us{1500} & Neutro / paro \\[2pt]
+  \texttt{ESC\_MAX\_US} & \us{2000} & $+100~\%$ (adelante) \\[2pt]
+  \texttt{CH3\_CENTER\_US} & \us{1545} & Centro del gas --- verificar en banco \\[2pt]
+  \texttt{ESC\_SLEW\_US} & 30~\textmu s/tick & Limitaci\'on de variaci\'on \\[2pt]
+  Raz\'on divisor bater\'ia & 5,683 & (562k + 120k) / 120k \\
+\end{longtable}
+
+% =============================================================================
+
+\end{document}
+
+

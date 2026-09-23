@@ -1,0 +1,790 @@
+\documentclass[12pt,a4paper]{article}
+
+% ── Encodage (pdflatex) ─────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amssymb}
+
+% ── Mise en page ────────────────────────────────────────────────────────────
+\usepackage[top=2.5cm, bottom=2.5cm, left=2.8cm, right=2.8cm]{geometry}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage{setspace}
+\onehalfspacing
+
+% ── Couleurs et boites ──────────────────────────────────────────────────────
+\usepackage[dvipsnames]{xcolor}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins, breakable, listings}
+
+\definecolor{codebg}{HTML}{1E1E2E}
+\definecolor{codefg}{HTML}{CDD6F4}
+\definecolor{commentfg}{HTML}{7F849C}
+\definecolor{keywordfg}{HTML}{CBA6F7}
+\definecolor{stringfg}{HTML}{A6E3A1}
+\definecolor{numberfg}{HTML}{FAB387}
+\definecolor{framebg}{HTML}{F5F5F5}
+\definecolor{frameaccent}{HTML}{204A87}
+\definecolor{alertbg}{HTML}{FFF3CD}
+\definecolor{alertborder}{HTML}{D6940B}
+\definecolor{okbg}{HTML}{D4EDDA}
+\definecolor{okborder}{HTML}{28A745}
+\definecolor{errorbg}{HTML}{F8D7DA}
+\definecolor{errorborder}{HTML}{DC3545}
+
+% ── Listings ────────────────────────────────────────────────────────────────
+\usepackage{listings}
+
+% Caracteres accentues dans les commentaires des blocs de code
+\lstset{literate=
+  {a}{{a}}1 {e}{{e}}1 {i}{{i}}1 {o}{{o}}1 {u}{{u}}1
+  {A}{{A}}1 {E}{{E}}1 {I}{{I}}1 {O}{{O}}1 {U}{{U}}1
+  {\'e}{{\'{e}}}1 {\`e}{{\`{e}}}1 {\^e}{{\^{e}}}1 {\"e}{{\"e}}1
+  {\'a}{{\'{a}}}1 {\`a}{{\`{a}}}1 {\^a}{{\^{a}}}1
+  {\`u}{{\`{u}}}1 {\^u}{{\^{u}}}1 {\"u}{{\"u}}1
+  {\^i}{{\^{i}}}1 {\"i}{{\"i}}1
+  {\^o}{{\^{o}}}1 {\"o}{{\"o}}1
+  {\c c}{{\c{c}}}1 {\c C}{{\c{C}}}1
+  {->}{{$\rightarrow$}}2
+  {>=}{{$\geq$}}2
+  {<=}{{$\leq$}}2
+}
+
+\lstdefinestyle{cppstyle}{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\small\color{codefg},
+  commentstyle=\color{commentfg}\itshape,
+  keywordstyle=\color{keywordfg}\bfseries,
+  stringstyle=\color{stringfg},
+  numberstyle=\tiny\color{numberfg},
+  breakatwhitespace=false,
+  breaklines=true,
+  keepspaces=true,
+  numbers=left,
+  numbersep=10pt,
+  showspaces=false,
+  showstringspaces=false,
+  tabsize=4,
+  frame=none,
+  xleftmargin=15pt,
+  language=C++,
+  morekeywords={uint8_t,uint16_t,uint32_t,Serial1,delay,memcpy,atoi},
+  inputencoding=utf8,
+  extendedchars=true,
+}
+
+\newtcblisting{cppbox}[1][]{
+  colback=codebg,
+  colframe=frameaccent,
+  arc=4pt,
+  boxrule=0.8pt,
+  left=6pt, right=6pt, top=4pt, bottom=4pt,
+  listing only,
+  listing style=cppstyle,
+  breakable,
+  #1
+}
+
+\newtcolorbox{infobox}[1][]{
+  colback=framebg, colframe=frameaccent,
+  arc=4pt, boxrule=0.8pt,
+  fonttitle=\bfseries, #1
+}
+\newtcolorbox{alertbox}[1][]{
+  colback=alertbg, colframe=alertborder,
+  arc=4pt, boxrule=0.8pt,
+  fonttitle=\bfseries, #1
+}
+\newtcolorbox{okbox}[1][]{
+  colback=okbg, colframe=okborder,
+  arc=4pt, boxrule=0.8pt,
+  fonttitle=\bfseries, #1
+}
+\newtcolorbox{errorbox}[1][]{
+  colback=errorbg, colframe=errorborder,
+  arc=4pt, boxrule=0.8pt,
+  fonttitle=\bfseries, #1
+}
+
+% ── Tableaux ────────────────────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+% ── En-tetes et pied de page ────────────────────────────────────────────────
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{gray}{Drone \`a voile --- Module GPS}}
+\fancyhead[R]{\small\textcolor{gray}{Documentation technique}}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\usepackage[colorlinks=true,linkcolor=frameaccent,urlcolor=frameaccent,
+            pdftitle={Module GPS u-blox NEO-6M},
+            pdfauthor={Facundo Arito}]{hyperref}
+
+% ── Titres de section ────────────────────────────────────────────────────────
+\usepackage{titlesec}
+\titleformat{\section}{\Large\bfseries\color{frameaccent}}{}{0em}{\thesection\enspace}[\titlerule]
+\titleformat{\subsection}{\large\bfseries\color{frameaccent!80}}{}{0em}{\thesubsection\enspace}
+\titleformat{\subsubsection}{\normalsize\bfseries}{}{0em}{\thesubsubsection\enspace}
+
+% ── Commandes utilitaires ────────────────────────────────────────────────────
+\newcommand{\hex}[1]{\texttt{0x#1}}
+\newcommand{\code}[1]{\texttt{#1}}
+
+% ════════════════════════════════════════════════════════════════════════════
+\begin{document}
+% ════════════════════════════════════════════════════════════════════════════
+
+% ── Page de titre ───────────────────────────────────────────────────────────
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+
+  {\Huge\bfseries\color{frameaccent} Module GPS u-blox NEO-6M}\\[0.6em]
+  {\Large Fonctionnement, diagnostic et correction}\\[2em]
+
+  \textcolor{gray}{\rule{0.6\textwidth}{0.5pt}}\\[1.5em]
+
+  {\large Projet \textbf{Drone \`a voile}\\[0.4em]
+  LilyGO T-Beam V1.1 --- ESP32 --- Antenne Taoglas ADFGP.25A}\\[3em]
+
+  \begin{tabular}{rl}
+    \textbf{Auteur}         & Facundo Arito \\[0.3em]
+    \textbf{Date}           & 20 mai 2026 \\[0.3em]
+    \textbf{Fichier source} & \code{main/src/drivers/GpsUart.cpp} \\
+  \end{tabular}
+
+  \vfill
+  \textcolor{gray}{\small Document g\'en\'er\'e automatiquement --- usage interne}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Vue d'ensemble du syst\`eme GPS}
+% ════════════════════════════════════════════════════════════════════════════
+
+\subsection{R\^ole du GPS dans le drone}
+
+Le module GPS fournit au drone sa position g\'eographique (latitude, longitude),
+sa vitesse sur l'eau et son cap. Ces donn\'ees sont essentielles pour le pilotage
+automatique et pour le journal de navigation.
+
+\subsection{Composants mat\'eriels}
+
+\begin{infobox}[title=Mat\'eriel impliqu\'e]
+\begin{tabular}{L{4.2cm} L{9.5cm}}
+\toprule
+\textbf{Composant} & \textbf{R\^ole} \\
+\midrule
+LilyGO T-Beam V1.1
+  & Carte principale --- int\`egre un ESP32, un module u-blox NEO-6M
+    et un connecteur u.FL pour antenne externe \\[0.4em]
+u-blox NEO-6M
+  & R\'ecepteur GPS. Communique avec l'ESP32 via UART (\code{Serial1})
+    et accepte des commandes de configuration binaires (protocole UBX) \\[0.4em]
+Taoglas ADFGP.25A
+  & Antenne active externe (patch c\'eramique + LNA int\'egr\'e).
+    Le LNA n\'ecessite une tension DC transmise sur le c\^able coaxial \\[0.4em]
+C\^able u.FL vers SMA
+  & Connecte le NEO-6M \`a l'antenne externe \\
+\bottomrule
+\end{tabular}
+\end{infobox}
+
+\subsection{Flux de donn\'ees}
+
+\begin{center}
+\begin{tabular}{ccccc}
+\textbf{Antenne} & $\longrightarrow$ & \textbf{NEO-6M} & $\longrightarrow$ & \textbf{ESP32} \\
+Signal RF 1575\,MHz & & D\'ecode les satellites & & Phrases NMEA (ASCII) \\
+\end{tabular}
+\end{center}
+
+\medskip
+Le NEO-6M re\c{c}oit les signaux radio des satellites, calcule la position
+et \'emet des \textbf{phrases NMEA} sur son UART. L'ESP32 lit ce flux via
+\code{Serial1} et utilise la biblioth\`eque \code{TinyGPSPlus} pour en
+extraire les donn\'ees utiles.
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Le protocole UBX}
+% ════════════════════════════════════════════════════════════════════════════
+
+\subsection{Deux langages sur un m\^eme fil}
+
+Le NEO-6M supporte deux protocoles sur son UART~:
+
+\begin{itemize}
+  \item \textbf{NMEA} --- phrases textuelles (ex.~\code{\$GPGGA,...}) lues
+        pour extraire la position. C'est le flux normal en fonctionnement.
+  \item \textbf{UBX} --- protocole binaire propri\'etaire u-blox, utilis\'e pour
+        \emph{configurer} le module (activer des fonctions, modifier des
+        param\`etres, sauvegarder en m\'emoire).
+\end{itemize}
+
+Le NEO-6M distingue une trame UBX d'une phrase NMEA gr\^ace aux deux premiers
+octets~: \hex{B5 62} pour UBX, le caract\`ere \code{\$} pour NMEA.
+
+\subsection{Structure d'une trame UBX}
+
+\begin{center}
+\begin{tabular}{C{1.8cm} C{1.8cm} C{2cm} C{2cm} C{2.5cm} C{2.5cm}}
+\toprule
+\textbf{Sync 1} & \textbf{Sync 2} & \textbf{Classe} & \textbf{ID}
+  & \textbf{Longueur (LE)} & \textbf{Payload} \\
+\midrule
+\hex{B5} & \hex{62} & 1 octet & 1 octet & 2 octets & $N$ octets \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+Chaque trame se termine par un \textbf{checksum de Fletcher} sur 2 octets
+(\code{CK\_A}, \code{CK\_B}), calcul\'e sur tous les octets depuis la classe
+jusqu'\`a la fin du payload (les deux octets de synchronisation sont exclus).
+
+\subsection{Calcul du checksum de Fletcher}
+
+\begin{cppbox}
+uint8_t CK_A = 0, CK_B = 0;
+// Parcourir : classe + ID + longueur (2 octets) + payload
+for (int i = 0; i < N; i++) {
+    CK_A += data[i];
+    CK_B += CK_A;
+}
+// CK_A et CK_B sont appended a la fin de la trame
+\end{cppbox}
+
+Ce checksum garantit l'int\'egrit\'e de la trame~: si un bit est corrompu,
+le NEO-6M ignore la commande.
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Pourquoi le GPS ne fonctionnait pas}
+% ════════════════════════════════════════════════════════════════════════════
+
+\subsection{Sympt\^ome observ\'e}
+
+Le compteur \code{chars} de \code{TinyGPSPlus} restait \textbf{fig\'e \`a 10}
+malgr\'e le GPS aliment\'e et l'antenne connect\'ee.
+
+\begin{alertbox}[title={Diagnostic~: que signifie chars = 10~?}]
+\code{chars} comptabilise \textbf{chaque octet re\c{c}u} sur \code{Serial1}.
+Une trame UBX ACK-ACK (r\'eponse d'acquittement du NEO-6M) fait exactement
+\textbf{10 octets}~:
+
+\medskip
+\texttt{B5 62 05 01 02 00 06 09 17 6B}
+
+\medskip
+\begin{tabular}{ll}
+\texttt{B5 62} & Sync UBX \\
+\texttt{05 01} & Classe ACK, ID ACK \\
+\texttt{02 00} & Longueur payload = 2 \\
+\texttt{06 09} & \'Echo de la commande acquitt\'ee (classe CFG, ID CFG) \\
+\texttt{17 6B} & Checksum \\
+\end{tabular}
+
+\medskip
+Conclusion~: le GPS \'etait \textbf{bien aliment\'e et fonctionnel},
+il r\'epondait aux commandes UBX, mais n'\'emettait \textbf{aucune phrase NMEA}.
+\end{alertbox}
+
+\subsection{Cause racine~: la m\'emoire flash interne du NEO-6M}
+
+Le NEO-6M poss\`ede une \textbf{m\'emoire flash interne} qui persiste la
+configuration entre les mises sous tension. Une session de configuration
+ant\'erieure (via le logiciel u-center de u-blox) avait sauvegard\'e une
+configuration qui \textbf{d\'esactivait toutes les phrases NMEA}.
+
+\begin{errorbox}[title=Cause identifi\'ee]
+La configuration persistante en flash d\'esactivait la sortie NMEA sur le
+port UART du NEO-6M. Le module fonctionnait normalement mais n'\'emettait que
+des r\'eponses UBX, invisibles pour \code{TinyGPSPlus}.
+\end{errorbox}
+
+\subsection{Cause aggravante~: antenne active sans alimentation DC}
+
+L'antenne Taoglas ADFGP.25A est une antenne \textbf{active}~: elle contient
+un amplificateur LNA qui n\'ecessite une tension DC transmise sur le c\^able
+coaxial. Par d\'efaut apr\`es une r\'einitialisation ROM, le superviseur
+d'antenne du NEO-6M est \textbf{d\'esactiv\'e}~:
+
+\begin{itemize}
+  \item Aucune tension DC sur le connecteur u.FL $\Rightarrow$ LNA hors tension.
+  \item Le commutateur RF du T-Beam pointe vers le patch c\'eramique interne
+        au lieu de l'antenne externe.
+  \item R\'esultat~: z\'ero signal GPS m\^eme avec l'antenne externe branch\'ee.
+\end{itemize}
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Les deux commandes UBX de correction}
+% ════════════════════════════════════════════════════════════════════════════
+
+\subsection{Commande 1 --- CFG-CFG~: r\'einitialisation usine}
+
+\subsubsection{Objectif}
+
+Effacer la configuration sauvegard\'ee en flash et recharger les param\`etres
+d'usine depuis la ROM interne. Apr\`es cette commande~:
+
+\begin{itemize}
+  \item Le UART1 du NEO-6M repasse \`a 9\,600 bauds.
+  \item Toutes les phrases NMEA standard sont r\'eactiv\'ees.
+  \item Le superviseur d'antenne est d\'esactiv\'e (\'etat ROM par d\'efaut).
+\end{itemize}
+
+\subsubsection{Structure de la trame}
+
+\begin{center}
+\begin{tabular}{C{1.8cm} C{1.5cm} C{1.5cm} C{1.8cm} C{2cm} C{1.5cm}}
+\toprule
+\textbf{Sync} & \textbf{Classe} & \textbf{ID} & \textbf{Longueur}
+  & \textbf{Payload} & \textbf{CRC} \\
+\midrule
+\hex{B5 62} & \hex{06} & \hex{09} & \hex{0D 00} & 13 octets & \hex{71 FE} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Classe \hex{06} = CFG (configuration), ID \hex{09} = sous-commande de gestion
+de la configuration persistante.
+
+\subsubsection{D\'ecomposition du payload (13 octets, little-endian)}
+
+\begin{center}
+\begin{tabular}{C{3.5cm} C{3cm} L{6.5cm}}
+\toprule
+\textbf{Champ (32\,bits LE)} & \textbf{Valeur hex} & \textbf{Signification} \\
+\midrule
+\code{clearMask} & \hex{0000001F} & Efface 5 sections de configuration \\
+\code{saveMask}  & \hex{00000000} & Ne sauvegarde rien \\
+\code{loadMask}  & \hex{0000001F} & Recharge depuis la ROM \\
+\code{deviceMask} & \hex{17} (8\,bits) & Cible~: BBR + Flash + EEPROM \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{infobox}[title=Pourquoi clearMask = 0x1F~?]
+Ce champ est un masque de bits~: chaque bit correspond \`a une section
+de la configuration persistante.
+
+\medskip
+\begin{tabular}{C{1.5cm} C{2.5cm} L{8cm}}
+\toprule
+\textbf{Bit} & \textbf{Valeur hex} & \textbf{Section effac\'ee} \\
+\midrule
+0 & \hex{01} & \code{ioPort}  --- configuration des ports (UART, SPI, USB) \\
+1 & \hex{02} & \code{msgConf} --- activation des phrases NMEA/UBX par port \\
+2 & \hex{04} & \code{infMsg}  --- messages d'information \\
+3 & \hex{08} & \code{navConf} --- param\`etres de navigation (mode, SBAS) \\
+4 & \hex{10} & \code{rxmConf} --- mode r\'ecepteur \\
+\midrule
+\multicolumn{3}{c}{\hex{01}\,|\,\hex{02}\,|\,\hex{04}\,|\,\hex{08}\,|\,\hex{10}
+  = \hex{1F}} \\
+\bottomrule
+\end{tabular}
+
+\medskip
+La section \code{msgConf} (bit 1) est la plus critique~: c'est elle qui
+d\'esactivait les phrases NMEA dans notre cas.
+\end{infobox}
+
+\subsubsection{Code source et explication octet par octet}
+
+\begin{cppbox}
+static const uint8_t kCfgCfgReset[] = {
+    0xB5, 0x62,              // Sync UBX -- debut obligatoire de toute trame
+    0x06, 0x09,              // Classe CFG (0x06), ID CFG (0x09)
+    0x0D, 0x00,              // Longueur payload : 13 octets (little-endian)
+    0x1F, 0x00, 0x00, 0x00, // clearMask : efface 5 sections de config
+    0x00, 0x00, 0x00, 0x00, // saveMask  : ne sauvegarde rien
+    0x1F, 0x00, 0x00, 0x00, // loadMask  : recharge depuis la ROM
+    0x17,                    // deviceMask : BBR(1)+Flash(2)+EEPROM(4)+SPI(16)
+    0x71, 0xFE               // Checksum Fletcher (CK_A=0x71, CK_B=0xFE)
+};
+\end{cppbox}
+
+\begin{alertbox}[title=Pourquoi \texttt{static const}~?]
+\code{static} dans une fonction signifie que le tableau est allou\'e \textbf{une
+seule fois en m\'emoire flash} (section \code{.rodata}), et non sur la pile
+\`a chaque appel. Sur un microcontr\^oleur avec peu de RAM comme l'ESP32,
+c'est une bonne pratique pour les constantes volumineuses.
+\end{alertbox}
+
+\subsection{Commande 2 --- CFG-ANT~: activation de l'antenne active}
+
+\subsubsection{Objectif}
+
+Activer le \textbf{superviseur d'antenne} du NEO-6M, qui accomplit trois
+actions~:
+
+\begin{enumerate}
+  \item Fournit une tension DC sur le c\^able coaxial pour alimenter le LNA
+        de l'antenne Taoglas.
+  \item Commande le commutateur RF du T-Beam (via la broche \code{ANT\_FLAG}
+        du NEO-6M) pour s\'electionner l'antenne externe u.FL.
+  \item Active la d\'etection de court-circuit pour prot\'eger le module.
+\end{enumerate}
+
+\subsubsection{Structure de la trame}
+
+\begin{center}
+\begin{tabular}{C{1.8cm} C{1.5cm} C{1.5cm} C{1.8cm} C{2cm} C{1.5cm}}
+\toprule
+\textbf{Sync} & \textbf{Classe} & \textbf{ID} & \textbf{Longueur}
+  & \textbf{Payload} & \textbf{CRC} \\
+\midrule
+\hex{B5 62} & \hex{06} & \hex{13} & \hex{04 00} & 4 octets & \hex{47 57} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Classe \hex{06} = CFG, ID \hex{13} = ANT (configuration de l'antenne).
+
+\subsubsection{D\'ecomposition du payload}
+
+\begin{center}
+\begin{tabular}{C{2.5cm} C{2.5cm} L{8cm}}
+\toprule
+\textbf{Champ (16\,bits)} & \textbf{Valeur} & \textbf{Signification} \\
+\midrule
+\code{flags} & \hex{001B} & Voir tableau ci-dessous \\
+\code{pins}  & \hex{000F} & Mapping broches --- valeur par d\'efaut NEO-6M \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{infobox}[title={D\'ecomposition de flags = 0x001B}]
+\begin{tabular}{C{1.5cm} C{2.5cm} L{9cm}}
+\toprule
+\textbf{Bit} & \textbf{Nom} & \textbf{Fonction} \\
+\midrule
+0 & \code{svcs}      & Alimentation DC + commutateur RF vers antenne externe \\
+1 & \code{scd}       & D\'etection de court-circuit \\
+3 & \code{pdwnOnSCD} & Coupe l'alimentation si court-circuit d\'etect\'e \\
+4 & \code{recovery}  & R\'etablissement automatique apr\`es court-circuit \\
+\midrule
+\multicolumn{3}{c}{\hex{01}\,|\,\hex{02}\,|\,\hex{08}\,|\,\hex{10} = \hex{1B}} \\
+\bottomrule
+\end{tabular}
+\end{infobox}
+
+\subsubsection{Code source}
+
+\begin{cppbox}
+static const uint8_t kCfgAnt[] = {
+    0xB5, 0x62,   // Sync UBX
+    0x06, 0x13,   // Classe CFG (0x06), ID ANT (0x13)
+    0x04, 0x00,   // Longueur payload : 4 octets
+    0x1B, 0x00,   // flags (LE) : svcs + scd + pdwnOnSCD + recovery
+    0x0F, 0x00,   // pins  (LE) : mapping broches par defaut NEO-6M
+    0x47, 0x57    // Checksum Fletcher
+};
+\end{cppbox}
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Explication ligne par ligne de \texttt{GpsUart::begin()}}
+% ════════════════════════════════════════════════════════════════════════════
+
+Voici le code complet de la fonction, suivi d'une explication d\'etaill\'ee
+de chaque bloc.
+
+\begin{cppbox}
+void GpsUart::begin() {
+    gsvTotal_.begin(gps_, "GPGSV", 3);
+    Serial1.begin(BoardConfig::GPS_BAUD_RATE, SERIAL_8N1,
+                  BoardConfig::GPS_RX_PIN, BoardConfig::GPS_TX_PIN);
+    DBG("GPS", "Serial1 started %u baud RX=GPIO%d TX=GPIO%d",
+        (unsigned)BoardConfig::GPS_BAUD_RATE,
+        BoardConfig::GPS_RX_PIN, BoardConfig::GPS_TX_PIN);
+
+    delay(500);   // attendre fin du boot interne du NEO-6M
+
+    static const uint8_t kCfgCfgReset[] = {
+        0xB5, 0x62, 0x06, 0x09, 0x0D, 0x00,
+        0x1F, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00,
+        0x1F, 0x00, 0x00, 0x00,
+        0x17,
+        0x71, 0xFE
+    };
+    Serial1.write(kCfgCfgReset, sizeof(kCfgCfgReset));
+    DBG("GPS", "CFG-CFG sent -- factory reset to ROM defaults");
+    delay(1500);  // attendre redemarrage apres reinitialisation
+
+    while (Serial1.available()) Serial1.read();  // vider le buffer
+
+    static const uint8_t kCfgAnt[] = {
+        0xB5, 0x62, 0x06, 0x13, 0x04, 0x00,
+        0x1B, 0x00,
+        0x0F, 0x00,
+        0x47, 0x57
+    };
+    Serial1.write(kCfgAnt, sizeof(kCfgAnt));
+    delay(100);
+    DBG("GPS", "CFG-ANT sent -- active antenna supervisor + bias enabled");
+}
+\end{cppbox}
+
+\subsection{Bloc 1 --- Initialisation du parser NMEA personnalis\'e}
+
+\begin{cppbox}
+gsvTotal_.begin(gps_, "GPGSV", 3);
+\end{cppbox}
+
+\code{TinyGPSPlus} ne d\'ecode pas toutes les phrases NMEA automatiquement.
+La phrase \code{GPGSV} (satellites en vue) n'est pas trait\'ee par d\'efaut~:
+il faut d\'eclarer explicitement quel champ extraire.
+
+\code{gsvTotal\_} est un objet \code{TinyGPSCustom}. Cette ligne lui dit~:
+dans les phrases \code{GPGSV}, extraire le \textbf{champ num\'ero 3} (le
+nombre total de satellites en vue). Ce champ devient lisible via
+\code{gsvTotal\_.value()}.
+
+\subsection{Bloc 2 --- Ouverture du port s\'erie}
+
+\begin{cppbox}
+Serial1.begin(BoardConfig::GPS_BAUD_RATE, SERIAL_8N1,
+              BoardConfig::GPS_RX_PIN, BoardConfig::GPS_TX_PIN);
+\end{cppbox}
+
+Configure le port UART1 de l'ESP32 pour communiquer avec le NEO-6M~:
+
+\begin{itemize}
+  \item \code{GPS\_BAUD\_RATE} = 9\,600 bauds --- vitesse par d\'efaut ROM du NEO-6M.
+  \item \code{SERIAL\_8N1} --- 8 bits de donn\'ees, pas de parit\'e, 1 bit de stop.
+  \item Les broches GPIO sont d\'efinies dans \code{BoardConfig.h} et
+        correspondent au c\^ablage du T-Beam.
+\end{itemize}
+
+\subsection{Bloc 3 --- Attente de d\'emarrage du GPS}
+
+\begin{cppbox}
+delay(500);
+\end{cppbox}
+
+Le NEO-6M a besoin d'environ 100 \`a 400\,ms pour terminer sa s\'equence
+de mise sous tension. Sans ce d\'elai, les commandes UBX envoy\'ees
+imm\'ediatement pourraient \^etre ignor\'ees. On attend 500\,ms pour une
+marge confortable.
+
+\subsection{Bloc 4 --- Envoi de CFG-CFG}
+
+\begin{cppbox}
+Serial1.write(kCfgCfgReset, sizeof(kCfgCfgReset));
+\end{cppbox}
+
+Envoie les 21 octets de la trame CFG-CFG sur le UART. \code{sizeof()} est
+\'evalu\'e par le compilateur~: sa valeur est exacte et ne peut pas \^etre
+oubli\'ee ou erron\'ee.
+
+Le NEO-6M re\c{c}oit la trame, v\'erifie le checksum, puis~:
+\begin{enumerate}
+  \item Efface les sections sp\'ecifi\'ees en flash et BBR.
+  \item Recharge ces sections depuis sa ROM (param\`etres d'usine).
+  \item Envoie une trame ACK-ACK de confirmation.
+  \item Red\'emarre son moteur de navigation interne.
+\end{enumerate}
+
+\subsection{Bloc 5 --- Attente du red\'emarrage}
+
+\begin{cppbox}
+delay(1500);
+\end{cppbox}
+
+La r\'einitialisation ROM prend entre 500\,ms et 1\,200\,ms. On attend
+1\,500\,ms pour s'assurer que le module est de nouveau pr\^et avant d'envoyer
+CFG-ANT.
+
+\subsection{Bloc 6 --- Vidage du buffer}
+
+\begin{cppbox}
+while (Serial1.available()) Serial1.read();
+\end{cppbox}
+
+Pendant le d\'elai de 1\,500\,ms, le GPS a pu envoyer des donn\'ees sur le
+UART (ACK-ACK, premi\`eres phrases NMEA de d\'emarrage). Ces donn\'ees
+s'accumulent dans le buffer de l'ESP32. On les lit et on les jette pour
+repartir sur une base propre avant CFG-ANT.
+
+\subsection{Bloc 7 --- Envoi de CFG-ANT}
+
+\begin{cppbox}
+Serial1.write(kCfgAnt, sizeof(kCfgAnt));
+delay(100);
+\end{cppbox}
+
+Envoie les 12 octets de la trame CFG-ANT. Le NEO-6M l'applique
+imm\'ediatement~:
+
+\begin{enumerate}
+  \item Alimentation DC activ\'ee sur u.FL $\Rightarrow$ LNA Taoglas aliment\'e.
+  \item Commutateur RF du T-Beam bascul\'e vers l'antenne externe.
+  \item D\'etection de court-circuit activ\'ee.
+\end{enumerate}
+
+Le \code{delay(100)} laisse le temps au module d'appliquer la configuration
+et de renvoyer l'ACK avant la fin de la fonction.
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Fonctionnement de \texttt{GpsUart::update()}}
+% ════════════════════════════════════════════════════════════════════════════
+
+La fonction \code{update()} est appel\'ee \`a chaque cycle de la boucle
+principale (environ 50 fois par seconde). Elle lit les octets disponibles
+sur le UART et les passe au parser \code{TinyGPSPlus}.
+
+\begin{cppbox}
+void GpsUart::update() {
+    while (Serial1.available()) {
+        char c = Serial1.read();
+        gps_.encode(c);               // (1) passe l'octet au parser
+
+        if (c == '\n') {              // (2) fin de phrase NMEA
+            lineBuf_[lineLen_] = '\0';
+            memcpy(completedLine_, lineBuf_, lineLen_ + 1);
+            lineLen_ = 0;
+        } else if (c != '\r' && lineLen_ < sizeof(lineBuf_) - 1) {
+            lineBuf_[lineLen_++] = c; // (3) accumule les caracteres
+        }
+    }
+
+    const bool nowValid = gps_.location.isValid(); // (4) fix GPS actif ?
+
+    if (nowValid && !prevValid_) { DBG("GPS", "FIX ACQUIRED ..."); }
+    if (!nowValid && prevValid_) { DBG("GPS", "FIX LOST"); }
+    prevValid_ = nowValid;
+
+    pos_.valid      = nowValid;       // (5) mise a jour structure publique
+    pos_.lat        = nowValid ? gps_.location.lat()  : 0.0;
+    pos_.lon        = nowValid ? gps_.location.lng()  : 0.0;
+    pos_.speedKmph  = gps_.speed.isValid()
+                        ? (float)gps_.speed.kmph()  : 0.0f;
+    pos_.courseDeg  = gps_.course.isValid()
+                        ? (float)gps_.course.deg()  : 0.0f;
+    pos_.satellites = gps_.satellites.isValid()
+                        ? (uint8_t)gps_.satellites.value() : 0;
+    pos_.hdop       = gps_.hdop.isValid()
+                        ? (float)gps_.hdop.hdop()   : 99.9f;
+    pos_.ageMs      = gps_.location.isValid()
+                        ? gps_.location.age() : 0xFFFFFFFFUL;
+}
+\end{cppbox}
+
+\begin{enumerate}
+  \item \textbf{\code{gps\_.encode(c)}} --- Le c\oe{}ur du parser. \code{TinyGPSPlus}
+        re\c{c}oit un octet \`a la fois et reconstruit les phrases NMEA en interne.
+        Quand une phrase compl\`ete et valide est re\c{c}ue, il met \`a jour ses
+        champs internes (\code{location}, \code{speed}, \code{satellites}, etc.).
+
+  \item \textbf{Capture de la phrase compl\`ete} --- Quand le caract\`ere
+        \code{\textbackslash{}n} (fin de ligne NMEA) est re\c{c}u, on copie le
+        buffer dans \code{completedLine\_} pour permettre l'affichage de la
+        derni\`ere phrase NMEA lors du diagnostic.
+
+  \item \textbf{Accumulation caract\`ere par caract\`ere} --- Les caract\`eres
+        sont accumul\'es dans \code{lineBuf\_}. Le \code{\textbackslash{}r}
+        (retour chariot) est ignor\'e~: le protocole NMEA utilise \code{CR+LF}
+        comme fin de ligne, mais seul \code{LF} d\'elimite la phrase.
+
+  \item \textbf{\code{gps\_.location.isValid()}} --- Retourne \code{true}
+        uniquement si une phrase NMEA valide avec fix actif a \'et\'e re\c{c}ue
+        r\'ecemment. Un fix froid (premier d\'emarrage) prend typiquement
+        30 secondes \`a 2 minutes \`a l'ext\'erieur avec une bonne vue du ciel.
+
+  \item \textbf{Mise \`a jour de \code{pos\_}} --- La structure publique est
+        rafra\^{\i}chie \`a chaque appel. Un champ invalide retourne une valeur
+        de s\'ecurit\'e~: \code{0.0} pour les coordonn\'ees, \code{99.9} pour
+        HDOP (valeur maximale = pas de fix), \code{0xFFFFFFFF} pour l'\^age
+        (signifiant donn\'ee absente).
+\end{enumerate}
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Guide de diagnostic}
+% ════════════════════════════════════════════════════════════════════════════
+
+\begin{center}
+\begin{longtable}{L{3.5cm} L{5.5cm} L{5.5cm}}
+\toprule
+\textbf{Sympt\^ome} & \textbf{Cause probable} & \textbf{Action} \\
+\midrule
+\endhead
+\code{chars} fig\'e \`a 0
+  & UART mal c\^abl\'e, broches TX/RX \'echang\'ees, ou GPS non aliment\'e
+  & V\'erifier c\^ablage et alimentation \\[0.5em]
+\code{chars} fig\'e \`a 10
+  & Config flash corrompue --- NMEA d\'esactiv\'e
+  & D\'ej\`a corrig\'e dans \code{begin()} par CFG-CFG \\[0.5em]
+\code{chars} monte,\newline \code{visible} = 0
+  & Obstruction physique (toit, b\^atiment)
+  & Aller \`a l'ext\'erieur, ciel d\'egag\'e \\[0.5em]
+\code{chars} monte,\newline \code{visible} > 0, pas de fix
+  & Temps d'acquisition froid normal
+  & Attendre 1 \`a 3\,min \`a l'ext\'erieur \\[0.5em]
+\code{chars} monte,\newline \code{visible} = 0 m\^eme dehors
+  & LNA non aliment\'e ou mauvais connecteur
+  & V\'erifier CFG-ANT, c\^able u.FL et sertissage \\[0.5em]
+Fix acquis puis perdu r\'eguli\`erement
+  & HDOP \'elev\'e, obstruction partielle
+  & D\'egager la vue du ciel (m\^at, pont) \\
+\bottomrule
+\end{longtable}
+\end{center}
+
+% ════════════════════════════════════════════════════════════════════════════
+\section{Chronologie de l'initialisation}
+% ════════════════════════════════════════════════════════════════════════════
+
+\begin{center}
+\begin{tabular}{C{2.5cm} L{11cm}}
+\toprule
+\textbf{Temps (ms)} & \textbf{\'Ev\'enement} \\
+\midrule
+0             & \code{Serial1.begin()} --- UART ESP32 ouvert \`a 9\,600 bauds \\
+0 -- 500      & D\'elai de d\'emarrage --- le NEO-6M termine son boot interne \\
+500           & Envoi de CFG-CFG --- demande de r\'einitialisation ROM \\
+$\approx$ 501 & Le NEO-6M r\'epond ACK-ACK (10 octets) \\
+501 -- 2000   & D\'elai de red\'emarrage --- rechargement de la config ROM \\
+2000          & Vidage du buffer UART \\
+2000          & Envoi de CFG-ANT --- activation du superviseur d'antenne \\
+$\approx$ 2100 & Fin de \code{begin()} --- le GPS est pr\^et \`a \'emettre du NMEA \\
+2100+         & \code{update()} appel\'e en boucle --- d\'ecodage des phrases NMEA \\
+$\approx$ 60\,000 -- 180\,000
+              & Premier fix GPS (typique en ext\'erieur, ciel d\'egag\'e) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ════════════════════════════════════════════════════════════════════════════
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+% ════════════════════════════════════════════════════════════════════════════
+
+Le dysfonctionnement du GPS \'etait d\^u \`a la persistance d'une configuration
+corrompue dans la m\'emoire flash interne du NEO-6M, qui avait d\'esactiv\'e
+toutes les sorties NMEA. La correction consiste \`a envoyer syst\'ematiquement,
+\`a chaque d\'emarrage, une commande de r\'einitialisation usine (\textbf{CFG-CFG})
+suivie de l'activation du superviseur d'antenne active (\textbf{CFG-ANT}).
+
+Ces deux commandes sont int\'egr\'ees dans \code{GpsUart::begin()}, ce qui
+garantit un comportement correct ind\'ependamment de toute session de
+configuration ant\'erieure effectu\'ee avec u-center ou tout autre outil.
+
+\begin{okbox}[title=\'Etat actuel du syst\`eme]
+\begin{itemize}
+  \item[$\checkmark$] Phrases NMEA r\'eactiv\'ees syst\'ematiquement \`a chaque boot.
+  \item[$\checkmark$] Antenne active Taoglas ADFGP.25A aliment\'ee correctement.
+  \item[$\checkmark$] Commutateur RF T-Beam bascul\'e vers l'antenne externe.
+  \item[$\checkmark$] Fix GPS confirm\'e lors des tests en ext\'erieur.
+\end{itemize}
+\end{okbox}
+
+\end{document}

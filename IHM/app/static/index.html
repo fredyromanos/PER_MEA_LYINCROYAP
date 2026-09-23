@@ -1,0 +1,796 @@
+<html lang="fr"><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AutoBoat - Home</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+
+    <style>
+        /* =========================================================
+           Base
+        ========================================================= */
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            color: #282828;
+        }
+
+        body {
+            display: flex;
+            overflow: hidden;
+        }
+
+        button,
+        label {
+            font-family: inherit;
+        }
+
+        /* =========================================================
+           Carte
+        ========================================================= */
+        #map {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* =========================================================
+           Panel de commande bas
+        ========================================================= */
+        #command-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+        }
+
+        .bottom-bar {
+            display: flex;
+            align-items: stretch;
+            gap: 25px;
+
+            width: auto;
+            max-width: 95vw;
+            padding: 15px 25px;
+
+            background-color: #2c3e50;
+            border-radius: 12px;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
+
+            color: white;
+            white-space: nowrap;
+        }
+
+        .command-panel-title {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            padding-right: 25px;
+            border-right: 1px solid rgba(255, 255, 255, 0.25);
+
+            font-size: 16px;
+            font-weight: 700;
+            color: white;
+        }
+
+        .panel-commands {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .top-command-row,
+        .bottom-command-row {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .top-command-row {
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .bottom-command-row {
+            gap: 15px;
+        }
+
+        .bottom-bar button,
+        .custom-file-upload {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+
+            min-height: 34px;
+            padding: 8px 15px;
+
+            border: none;
+            border-radius: 5px;
+
+            background-color: #34495e;
+            color: white;
+
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .bottom-bar button:hover,
+        .custom-file-upload:hover {
+            background-color: #3498db;
+        }
+
+        #routeFileInput,
+        .custom-file-upload input[type="file"] {
+            display: none;
+        }
+
+        .custom-file-upload {
+            background-color: #16a085;
+        }
+
+        .btn-success {
+            background-color: #27ae60 !important;
+        }
+
+        .btn-success:hover {
+            background-color: #2ecc71 !important;
+        }
+
+        .btn-danger {
+            background-color: #c0392b !important;
+        }
+
+        .btn-danger:hover {
+            background-color: #e74c3c !important;
+        }
+
+        .btn-reset {
+            background-color: #7f8c8d !important;
+        }
+
+        .btn-reset:hover {
+            background-color: #95a5a6 !important;
+        }
+
+        .btn-primary {
+            background-color: #2980b9 !important;
+        }
+
+        .btn-primary:hover {
+            background-color: #3498db !important;
+        }
+
+        /* =========================================================
+           Panel d'information droit
+        ========================================================= */
+        #panel {
+            position: fixed;
+            right: 16px;
+            bottom: 110px;
+            z-index: 1000;
+
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+
+            width: 350px;
+            min-width: 250px;
+            max-width: 80vw;
+            max-height: calc(100vh - 140px);
+
+            padding: 12px;
+            resize: horizontal;
+            overflow: auto;
+
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+
+        .panel-item {
+            padding: 10px;
+            border: 1px solid #d2d2d2;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.9);
+            color: #585b5e;
+        }
+
+        .panel-title {
+            display: flex;
+            align-items: center;
+
+            margin: 0 0 6px 0;
+
+            font-size: 15px;
+            font-weight: 700;
+            color: #282828;
+            white-space: nowrap;
+        }
+
+        .panel-info {
+            color: #282828;
+        }
+
+        /* =========================================================
+           Barres de progression
+        ========================================================= */
+        .progress-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .progress-container {
+            position: relative;
+            flex: 1;
+            height: 16px;
+
+            overflow: hidden;
+            background: #e0e0e0;
+            border-radius: 8px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: #4caf50;
+            transition: width 0.3s ease;
+        }
+
+        .progress-min,
+        .progress-max {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 10px;
+            color: #282828;
+        }
+
+        .progress-min {
+            left: 6px;
+        }
+
+        .progress-max {
+            right: 6px;
+        }
+
+        #percentBattery,
+        #powerValue {
+            min-width: 42px;
+            text-align: right;
+            font-weight: 700;
+        }
+
+        /* =========================================================
+           Responsive
+        ========================================================= */
+        @media (max-width: 900px) {
+    .bottom-bar {
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .command-panel-title {
+        padding-right: 0;
+        padding-bottom: 10px;
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+    }
+
+    .bottom-command-row {
+        flex-wrap: wrap;
+    }
+
+    .waypoint-panel {
+        width: 100%;
+        max-width: 100%;
+        max-height: 140px;
+
+        padding-left: 0;
+        padding-top: 12px;
+
+        border-left: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.25);
+    }
+
+    #panel {
+        right: 10px;
+        left: 10px;
+        bottom: 170px;
+        width: auto;
+        max-width: none;
+    }
+}
+
+/* =========================================================
+   Liste des waypoints à droite des commandes
+========================================================= */
+
+.waypoint-panel {
+    flex-shrink: 0;
+    width: 210px;
+    max-width: 210px;
+    max-height: 120px;
+
+    padding-left: 18px;
+    margin-left: 4px;
+
+    border-left: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.waypoint-panel-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+}
+
+#waypoints-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+
+    margin: 6px 0 0;
+    padding: 0;
+
+    list-style: none;
+    overflow-y: auto;
+    max-height: 90px;
+}
+
+#waypoints-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+
+    padding: 6px 8px;
+
+    background-color: rgba(255, 255, 255, 0.10);
+    border-radius: 6px;
+
+    font-size: 12px;
+    line-height: 1.3;
+    color: white;
+
+    white-space: normal;
+}
+
+#waypoints-list li span {
+    overflow-wrap: break-word;
+    white-space: normal;
+}
+
+#waypoints-list li button {
+    min-height: 24px;
+    padding: 4px 8px;
+
+    background-color: #c0392b;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+#waypoints-list li button:hover {
+    background-color: #e74c3c;
+}
+
+/* =========================================================
+   Panneau de santé / diagnostic
+========================================================= */
+.health-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.health-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+
+.health-dot {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: #9e9e9e;
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.3);
+    transition: background 0.3s ease;
+}
+
+.health-dot.ok      { background: #27ae60; }
+.health-dot.warn    { background: #f39c12; }
+.health-dot.bad     { background: #c0392b; }
+.health-dot.unknown { background: #9e9e9e; }
+.health-dot.radio   { background: #5dade2; }   /* céleste — mode radio (manuel) */
+
+.health-label {
+    font-weight: 600;
+    min-width: 70px;
+}
+
+.health-value {
+    margin-left: auto;
+    color: #585b5e;
+}
+
+.health-warning {
+    margin-top: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: #fdebd0;
+    border: 1px solid #f39c12;
+    color: #ad6800;
+    font-size: 12px;
+    line-height: 1.3;
+}
+
+/* =========================================================
+   Bascule Simulation / Réel
+========================================================= */
+.mode-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 13px;
+    font-weight: 400;
+    color: white;
+}
+
+.mode-toggle .switch {
+    position: relative;
+    width: 46px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.mode-toggle .switch input {
+    width: 0;
+    height: 0;
+    opacity: 0;
+}
+
+.mode-toggle .slider {
+    position: absolute;
+    inset: 0;
+    background: #7f8c8d;
+    border-radius: 24px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.mode-toggle .slider::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.3s ease;
+}
+
+.mode-toggle input:checked + .slider {
+    background: #16a085;
+}
+
+.mode-toggle input:checked + .slider::before {
+    transform: translateX(22px);
+}
+
+/* =========================================================
+   Boussole de vent (coin sup. gauche de la carte)
+========================================================= */
+#windCompass {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 1000;
+
+    width: 96px;
+    padding: 8px 8px 6px;
+
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+
+    text-align: center;
+    font-size: 11px;
+    color: #282828;
+}
+
+#windCompass.no-data { opacity: 0.45; }
+
+.wc-rose {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 4px;
+    border: 2px solid #b0b0b0;
+    border-radius: 50%;
+    background: rgba(52, 152, 219, 0.06);
+}
+
+.wc-rose span {
+    position: absolute;
+    font-size: 9px;
+    font-weight: 700;
+    color: #777;
+}
+.wc-n { top: 2px;  left: 50%; transform: translateX(-50%); }
+.wc-s { bottom: 2px; left: 50%; transform: translateX(-50%); }
+.wc-e { top: 50%; right: 4px; transform: translateY(-50%); }
+.wc-w { top: 50%; left: 4px;  transform: translateY(-50%); }
+
+.wc-arrow-g { transition: transform 0.4s ease; }
+
+.wc-label { font-weight: 700; white-space: nowrap; }
+
+/* =========================================================
+   Mesure du vent — sous la boussole (coin sup. gauche)
+========================================================= */
+#windObsSection {
+    position: fixed;
+    top: 132px;
+    left: 14px;
+    z-index: 1000;
+
+    width: 156px;
+    padding: 8px 10px;
+
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+
+    font-size: 12px;
+    color: #282828;
+}
+
+.wo-title { margin-bottom: 6px; font-weight: 700; white-space: nowrap; }
+.wo-row { display: flex; align-items: center; gap: 8px; }
+#windObsValue { min-width: 50px; text-align: right; font-weight: 700; }
+
+#windObsCancelButton {
+    width: 100%;
+    margin-top: 8px;
+    padding: 5px 8px;
+    border: none;
+    border-radius: 5px;
+    background: #c0392b;
+    color: white;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+#windObsCancelButton:hover { background: #e74c3c; }
+    </style>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+</head>
+
+<body>
+    <main id="map"></main>
+
+    <!-- Boussole : direction D'OÙ VIENT le vent (flèche pointe vers la source) -->
+    <div id="windCompass" class="no-data" aria-label="Direction du vent">
+        <div class="wc-rose">
+            <span class="wc-n">N</span>
+            <span class="wc-e">E</span>
+            <span class="wc-s">S</span>
+            <span class="wc-w">O</span>
+            <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden="true">
+                <g class="wc-arrow-g" id="wcArrowG" transform="rotate(0 36 36)">
+                    <line x1="36" y1="36" x2="36" y2="11" stroke="#c0392b" stroke-width="3" />
+                    <polygon points="36,5 31,16 41,16" fill="#c0392b" />
+                    <circle cx="36" cy="36" r="3" fill="#34495e" />
+                </g>
+            </svg>
+        </div>
+        <div class="wc-label">Vent <span id="wcValue">?</span>°</div>
+    </div>
+
+    <!-- Barre de progression de la mesure du vent (sous la boussole) -->
+    <div id="windObsSection" style="display:none;">
+        <div class="wo-title">📏 Mesure du vent</div>
+        <div class="wo-row">
+            <div class="progress-container">
+                <div class="progress-bar" id="windObsBar"></div>
+            </div>
+            <span id="windObsValue">0%</span>
+        </div>
+        <button id="windObsCancelButton" type="button">✖ Annuler la mesure</button>
+    </div>
+
+    <!-- =========================================================
+         Commandes AutoBoat
+    ========================================================== -->
+    <section id="command-panel" aria-label="Commandes AutoBoat">
+        <div class="bottom-bar">
+            <div class="command-panel-title">
+                <div>
+                    AutoBoat Control
+                    <div class="mode-toggle">
+                        <span>Réel</span>
+                        <label class="switch">
+                            <input type="checkbox" id="modeToggle">
+                            <span class="slider"></span>
+                        </label>
+                        <span>Sim</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-commands">
+                <div class="top-command-row">
+                    <select id="simScenarioSelect" title="Scénario de simulation">
+                        <option value="mission-square" selected>Mission carré 400 m (toutes allures)</option>
+                        <option value="mission-square-dropout">Mission carré + perte de fix</option>
+                        <option value="gps">Simu GPS libre (route manuelle)</option>
+                        <option value="classic">Simu classique</option>
+                        <option value="gps-dropout">Simu GPS + perte de fix</option>
+                    </select>
+                    <button id="startButton" class="btn-success" type="button">✅ Start</button>
+                    <button id="send-route-btn" type="button">Envoyer la route</button>
+                    <button id="clear-route-btn" type="button">Effacer route</button>
+                    <button id="resetCommunicationsButton" class="btn-reset" type="button">Réinit coms</button>
+                    <button id="resetTransceiverButton" class="btn-reset" type="button">🔌 Reconnecter TRX</button>
+                    <button id="restartButton" class="btn-danger" type="button">🔄 Redémarrer</button>
+                </div>
+
+                <div class="bottom-command-row">
+                    <label for="routeFileInput" class="custom-file-upload">
+                        📂 Importer route
+                        <input type="file" id="routeFileInput" accept=".geojson">
+                    </label>
+
+                    <button id="windObservationButton" type="button">📏 Mesure vent</button>
+                    <button id="windCommandButton" type="button">🌬️ Envoi vent</button>
+                    <button id="trajectoryButton" type="button">🧭 Trajectoire</button>
+                    <button id="navigateButton" class="btn-primary" type="button">🚢 Naviguer</button>
+                </div>
+            </div>
+
+            <aside class="waypoint-panel" aria-label="Liste des waypoints">
+                <div class="waypoint-panel-title">Waypoints</div>
+                <ul id="waypoints-list"></ul>
+            </aside>
+        </div>
+    </section>
+
+    <!-- =========================================================
+         Informations bateau
+    ========================================================== -->
+    <aside id="panel" aria-label="Informations AutoBoat">
+        <section class="panel-item">
+            <h4 class="panel-title">État système</h4>
+            <div class="health-grid">
+                <div class="health-row">
+                    <span class="health-dot unknown" id="healthLinkDot"></span>
+                    <span class="health-label">Liaison</span>
+                    <span class="health-value" id="healthLinkValue">—</span>
+                </div>
+                <div class="health-row">
+                    <span class="health-dot unknown" id="healthGpsDot"></span>
+                    <span class="health-label">GPS</span>
+                    <span class="health-value" id="healthGpsValue">—</span>
+                </div>
+                <div class="health-row">
+                    <span class="health-dot unknown" id="healthBatDot"></span>
+                    <span class="health-label">Batterie</span>
+                    <span class="health-value" id="healthBatValue">—</span>
+                </div>
+                <div class="health-row">
+                    <span class="health-dot unknown" id="healthRcDot"></span>
+                    <span class="health-label">Radio (RC)</span>
+                    <span class="health-value" id="healthRcValue">—</span>
+                </div>
+                <div class="health-row">
+                    <span class="health-dot unknown" id="healthModeDot"></span>
+                    <span class="health-label">Contrôle</span>
+                    <span class="health-value" id="healthModeValue">—</span>
+                </div>
+            </div>
+            <div class="health-warning" id="healthWarning" style="display:none;">
+                ⚠ Liaison perdue — paramètres ci-dessus non fiables (dernières valeurs connues).
+            </div>
+        </section>
+
+        <section class="panel-item">
+            <h4 class="panel-title">Dernier message</h4>
+            <span id="boatLastTimeDisplay" class="panel-info">?</span>
+        </section>
+
+        <section class="panel-item">
+            <h4 class="panel-title">État batterie</h4>
+            <div class="progress-wrapper">
+                <div class="progress-container">
+                    <div class="progress-bar" id="progressBattery"></div>
+                </div>
+                <span id="percentBattery">0%</span>
+            </div>
+        </section>
+
+        <section class="panel-item">
+            <h4 class="panel-title">Puissance moteur</h4>
+            <div class="progress-wrapper">
+                <div class="progress-container">
+                    <div class="progress-bar" id="powerBar"></div>
+                    <span class="progress-min" id="minPowerLabel">0 W</span>
+                    <span class="progress-max" id="maxPowerLabel">12 W</span>
+                </div>
+                <span id="powerValue">0%</span>
+            </div>
+        </section>
+
+        <section class="panel-item">
+            <h4 class="panel-title">Mode</h4>
+            <span id="boatModeDisplay" class="panel-info">not-connected</span>
+        </section>
+
+        <section class="panel-item">
+            <h4 class="panel-title">Vitesse bateau</h4>
+            <span id="speed_kmh">0.00</span> <small>km/h |</small>
+            <span id="speed_knots">0.00</span> <small>kn</small>
+        </section>
+
+        <section class="panel-item">
+            <h4 class="panel-title">Cap</h4>
+            <span id="boatHeadingDisplay" class="panel-info">?</span>°
+        </section>
+
+        <section class="panel-item">
+            <h4 class="panel-title">Servos</h4>
+            Voile:&nbsp;<span id="boatSailAngleDisplay" class="panel-info">?</span>°<br>
+            Safran:&nbsp;<span id="boatRudderAngleDisplay" class="panel-info">?</span>°
+        </section>
+
+        <section class="panel-item">
+            <h4 class="panel-title">Vent</h4>
+            <span id="windDirectionDisplay" class="panel-info">?</span>°
+        </section>
+
+        <section class="panel-item">
+            <h4 class="panel-title">Coordonnées</h4>
+            Lat:&nbsp;<span id="boatLatitudeDisplay" class="panel-info">?</span>
+            | Lon:&nbsp;<span id="boatLongitudeDisplay" class="panel-info">?</span>
+        </section>
+
+        <section class="panel-item">
+            <h4 class="panel-title">Waypoints</h4>
+            Total:&nbsp;<span id="waypointTotalDisplay" class="panel-info">?</span><br>
+            Actuel:&nbsp;<span id="waypointCurrentDisplay" class="panel-info">?</span>
+        </section>
+    </aside>
+
+    <style>
+        /* Icône bateau (script.js boatIcon) : pas de fond carré blanc Leaflet */
+        .boat-divicon { background: transparent; border: none; }
+        .boat-icon { width: 34px; height: 34px; transition: transform 0.4s linear; }
+    </style>
+    <script src="./nav.js?v=2" defer=""></script>
+    <script src="./map.js?v=8" defer=""></script>
+    <script src="./script.js?v=18" defer=""></script>
+
+
+</body></html>
