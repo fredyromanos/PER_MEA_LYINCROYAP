@@ -1,6 +1,4 @@
-#!/bin/sh
-'''exec' "/home/ewen/Documents/Semestre 9/PER/AutoBoat/IHM/.venv/bin/python" "$0" "$@"
-' '''
+#!/mnt/c/Users/user/Desktop/PER/S9P-2026/S9P-2026/03_Developpement_logiciel/PER_MEA_LYINCROYAP/IHM/.venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys

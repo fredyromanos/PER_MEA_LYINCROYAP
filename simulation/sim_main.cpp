@@ -117,50 +117,35 @@ ScenarioData runScenario6() {
 }
 
 ScenarioData runScenario7() {
-  std::cout << "\n========== SCENARIO 7: Tour de la rade de Brest =========="
-            << std::endl;
+  std::cout << "\n========== SCENARIO 7: Grand Test Autonomie Océanique (7 Jours) ==========" << std::endl;
   SimTime::init();
 
-  constexpr double DEPART_LAT = 48.359045;
-  constexpr double DEPART_LON = -4.550422;
-  constexpr double POINTE_ESPAGNOLS_LAT = 48.342791;
-  constexpr double POINTE_ESPAGNOLS_LON = -4.531538;
-  constexpr double DODGE_ILE_LONGUE_1_LAT = 48.321877;
-  constexpr double DODGE_ILE_LONGUE_1_LON = -4.472607;
-  constexpr double DODGE_ILE_LONGUE_2_LAT = 48.304197;
-  constexpr double DODGE_ILE_LONGUE_2_LON = -4.476354;
-  constexpr double ANSE_DU_FRET_LAT = 48.288225;
-  constexpr double ANSE_DU_FRET_LON = -4.507496;
-  constexpr double LANVEOC_PETITE_GREVE_LAT = 48.291951;
-  constexpr double LANVEOC_PETITE_GREVE_LON = -4.467499;
-  constexpr double WAYPOINT_INTERMEDIAIRE_LAT = 48.327297;
-  constexpr double WAYPOINT_INTERMEDIAIRE_LON = -4.474672;
-  constexpr double FORT_DES_CORBEAUX_LAT = 48.350031;
-  constexpr double FORT_DES_CORBEAUX_LON = -4.445427;
-
   SimulatedBoat boat;
-  boat.init(DEPART_LAT, DEPART_LON, 90, 4.0, 138);
+  // Départ au milieu de l'océan (Lat 45.0, Lon -5.0) pour éviter la terre
+  // Vent constant du Nord (0°) à 5 m/s
+  boat.init(45.000, -5.000, 0, 5.0, 90);
 
-  boat.addWaypoint(POINTE_ESPAGNOLS_LAT, POINTE_ESPAGNOLS_LON);
-  boat.addWaypoint(DODGE_ILE_LONGUE_1_LAT, DODGE_ILE_LONGUE_1_LON);
-  boat.addWaypoint(DODGE_ILE_LONGUE_2_LAT, DODGE_ILE_LONGUE_2_LON);
-  boat.addWaypoint(ANSE_DU_FRET_LAT, ANSE_DU_FRET_LON);
-  boat.addWaypoint(LANVEOC_PETITE_GREVE_LAT, LANVEOC_PETITE_GREVE_LON);
-  boat.addWaypoint(WAYPOINT_INTERMEDIAIRE_LAT, WAYPOINT_INTERMEDIAIRE_LON);
-  boat.addWaypoint(FORT_DES_CORBEAUX_LAT, FORT_DES_CORBEAUX_LON);
-  boat.addWaypoint(DEPART_LAT, DEPART_LON);
+  boat.setCorridorWidth(2000000.0);
+
+  // Parcours carré géant (~110 km de côté) pour laisser le temps à l'algo de se stabiliser
+  boat.addWaypoint(45.000, -4.000); // WP 1: Cap à l'Est (Travers)
+  boat.addWaypoint(46.000, -4.000); // WP 2: Cap au Nord (Remontée au vent / Zigzag)
+  boat.addWaypoint(46.000, -5.000); // WP 3: Cap à l'Ouest (Travers)
+  boat.addWaypoint(45.000, -5.000); // WP 4: Cap au Sud (Descente vent arrière / Zigzag)
 
   boat.startWindObservation();
-  boat.runSimulation(60000, 100);
-  boat.setWind(90, 4.0);
+  boat.runSimulation(60000, 50); // 1 minute d'observation
+  
+  boat.setWindDirection(0); // Le vent reste fixe au Nord
   boat.startNavigation();
-  boat.setWind(215, 4.0);
+  
+  // Simulation sur 7 JOURS complets
   constexpr unsigned long SEVEN_DAYS_MS = 7UL * 24UL * 60UL * 60UL * 1000UL;
+  // On passe le pas de temps à 1000ms (1 sec) pour simuler 7 jours sans faire exploser la RAM
   boat.runSimulation(SEVEN_DAYS_MS, 1000);
 
-  return {"S7 Tour de la rade de Brest", boat.getHistory(),
-          boat.getWaypointPairs(), boat.getInitialWindDir(),
-          boat.getWindSpeed()};
+  return {"S7 Autonomie Océanique", boat.getHistory(), boat.getWaypointPairs(),
+          boat.getInitialWindDir(), boat.getWindSpeed()};
 }
 
 int main(int argc, char *argv[]) {
@@ -171,12 +156,12 @@ int main(int argc, char *argv[]) {
 
   std::vector<ScenarioData> allScenarios;
 
-  allScenarios.push_back(runScenario1());
-  allScenarios.push_back(runScenario2());
-  allScenarios.push_back(runScenario3());
-  allScenarios.push_back(runScenario4());
-  allScenarios.push_back(runScenario5());
-  allScenarios.push_back(runScenario6());
+  //allScenarios.push_back(runScenario1());
+  //allScenarios.push_back(runScenario2());
+  //allScenarios.push_back(runScenario3());
+  //allScenarios.push_back(runScenario4());
+  //allScenarios.push_back(runScenario5());
+  //allScenarios.push_back(runScenario6());
   allScenarios.push_back(runScenario7());
 
   if (allScenarios.empty()) {

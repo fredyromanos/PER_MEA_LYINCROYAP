@@ -184,8 +184,12 @@ void SimulatedBoat::updateNavigationLogic() {
         windDirection, // variable globale
         sailAngle,     // angle courant (peut être accumulé)
         rudderAngle,   // angle courant (peut être accumulé)
-        WAYPOINT_DISTANCE_SIM, sensor.latitude, sensor.longitude, wpt.lat,
-        wpt.lng, NAV_DEFAULT_CORRIDOR_HALF_WIDTH_M);
+        WAYPOINT_DISTANCE_SIM,
+        sensor.latitude,
+        sensor.longitude,
+        wpt.lat,
+        wpt.lng,
+        corridorWidth);
 
     // Stocker les résultats bruts (comme les variables globales du vrai bateau)
     sailAngle = r.sailAngle;

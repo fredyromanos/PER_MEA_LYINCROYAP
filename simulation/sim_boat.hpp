@@ -64,6 +64,11 @@ public:
         return v;
     }
 
+    void setCorridorWidth(double widthMeters) 
+    { 
+    corridorWidth = widthMeters; 
+    }
+
     void printStatus() const;
 
     /**
@@ -110,6 +115,7 @@ private:
     // Appelle le VRAI code de navigation depuis boat/navigation.h
     void updateNavigationLogic();
     void applyServoOutput();
+    double corridorWidth = 100.0;
 };
 
 #endif // SIM_BOAT_HPP
