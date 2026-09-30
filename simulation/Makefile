@@ -16,7 +16,8 @@ SOURCES = \
 	sim_boat.cpp \
 	$(EXPORT_DIR)/sim_html_export.cpp \
 	$(MOCKS_DIR)/Arduino.cpp \
-	$(MOCKS_DIR)/LoRa.cpp
+	$(MOCKS_DIR)/LoRa.cpp \
+	$(EXPORT_DIR)/sim_vv_archive.cpp
 
 # Fichiers objet
 OBJECTS = $(SOURCES:.cpp=.o)

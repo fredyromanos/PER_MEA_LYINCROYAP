@@ -69,6 +69,10 @@ public:
     corridorWidth = widthMeters; 
     }
 
+    void setWindChaos(double chaos) 
+    { windChaos = std::max(0.0, std::min(1.0, chaos)); 
+    }
+
     void printStatus() const;
 
     /**
@@ -116,6 +120,9 @@ private:
     void updateNavigationLogic();
     void applyServoOutput();
     double corridorWidth = 100.0;
+    double windChaos = 0.0;
+    double targetWindDir = 0.0;
+    unsigned long lastWindChangeTime = 0;
 };
 
 #endif // SIM_BOAT_HPP

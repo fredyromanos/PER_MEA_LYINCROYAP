@@ -3,8 +3,13 @@
 #include "sim_boat.hpp"
 #include <cmath>
 #include <iostream>
+#include <filesystem>
+#include <chrono>
+#include <ctime>
+#include <iomanip>
+#include <fstream>
+#include "export/sim_vv_archive.hpp"
 
-// ── Helpers ──
 
 ScenarioData runScenario1() {
   std::cout << "\n========== SCENARIO 1: Simple  ==========" << std::endl;
@@ -125,7 +130,7 @@ ScenarioData runScenario7() {
   // Vent constant du Nord (0°) à 5 m/s
   boat.init(45.000, -5.000, 0, 5.0, 90);
 
-  boat.setCorridorWidth(2000000.0);
+  boat.setCorridorWidth(6000.0);
 
   // Parcours carré géant (~110 km de côté) pour laisser le temps à l'algo de se stabiliser
   boat.addWaypoint(45.000, -4.000); // WP 1: Cap à l'Est (Travers)
@@ -148,36 +153,58 @@ ScenarioData runScenario7() {
           boat.getInitialWindDir(), boat.getWindSpeed()};
 }
 
+ScenarioData runScenario8() {
+  std::cout << "\n========== SCENARIO 8: HIGH INTENSITY CHAOS ==========" << std::endl;
+  SimTime::init();
+
+  std::srand(std::time(nullptr));
+
+  SimulatedBoat boat;
+  boat.init(45.000, -5.000, 0, 5.0, 90);
+  
+  boat.setWindChaos(0.7);
+
+  // Le grand carré océanique
+  boat.addWaypoint(45.000, -4.000); 
+  boat.addWaypoint(46.000, -4.000); 
+  boat.addWaypoint(46.000, -5.000); 
+  boat.addWaypoint(45.000, -5.000); 
+
+  boat.startWindObservation();
+  boat.runSimulation(60000, 50); 
+  
+  boat.startNavigation();
+  constexpr unsigned long SEVEN_DAYS_MS = 7UL * 24UL * 60UL * 60UL * 1000UL;
+  boat.runSimulation(SEVEN_DAYS_MS, 1000);
+
+  return {"S8 Chaos Aleatoire", boat.getHistory(), boat.getWaypointPairs(),
+          boat.getInitialWindDir(), boat.getWindSpeed()};
+}
+
 int main(int argc, char *argv[]) {
   std::cout << "╔═══════════════════════════════════════╗" << std::endl;
-  std::cout << "║     AutoBoat Simulation System        ║" << std::endl;
-  std::cout << "║     Integrated Physics + Navigation   ║" << std::endl;
+  std::cout << "║   AutoBoat - V&V Simulation System    ║" << std::endl;
   std::cout << "╚═══════════════════════════════════════╝" << std::endl;
 
   std::vector<ScenarioData> allScenarios;
 
-  //allScenarios.push_back(runScenario1());
-  //allScenarios.push_back(runScenario2());
-  //allScenarios.push_back(runScenario3());
-  //allScenarios.push_back(runScenario4());
-  //allScenarios.push_back(runScenario5());
-  //allScenarios.push_back(runScenario6());
+  // Lancement de tes tests
+  allScenarios.push_back(runScenario1());
+  allScenarios.push_back(runScenario2());
+  allScenarios.push_back(runScenario3());
+  allScenarios.push_back(runScenario4());
+  allScenarios.push_back(runScenario5());
+  allScenarios.push_back(runScenario6());
   allScenarios.push_back(runScenario7());
+  allScenarios.push_back(runScenario8());
 
   if (allScenarios.empty()) {
-    std::cout << "Scenario "
-              << " not implemented. Available: 1-7 (or 0/none for all)"
-              << std::endl;
+    std::cout << "Aucun scénario implémenté." << std::endl;
     return 1;
   }
 
-  // Export HTML unique avec tous les scénarios
-  HTMLExporter::exportAllScenarios("output/simulation.html", allScenarios);
-
-  std::cout << "\n✓ Simulation complete!" << std::endl;
-  std::cout
-      << "  Open output/simulation.html in a browser to view all scenarios."
-      << std::endl;
+  // Un seul appel ultra-propre à la classe de sauvegarde
+  VVArchive::generateArchive(allScenarios);
 
   return 0;
 }

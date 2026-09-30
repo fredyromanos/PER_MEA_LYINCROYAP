@@ -252,7 +252,56 @@ void SimulatedBoat::applyServoOutput() {
   // Les servos sont déjà appliqués via updateNavigationLogic
 }
 
+//void SimulatedBoat::stepSimulation(unsigned long dt_ms) {
+//  if (windChaos > 0.0) {
+    
+//    double t_h = environment.getState().time / 3600000.0;
+
+    //Bascule 
+//   double driftDir = (std::sin(t_h * 15.0) + std::cos(t_h * 4.5)) * 20.0 * windChaos;
+//   double currentDir = initialWindDirection + driftDir;
+
+//    double driftSpd = std::sin(t_h * 27.0) * 3.0 * windChaos;
+//    double currentSpd = std::max(1.0, 5.0 + driftSpd); // Jamais sous 1 m/s
+
+//    setWind(currentDir, currentSpd);
+
+//    corridorWidth = 100.0 + (5900.0 * windChaos * (1.0 + std::abs(driftDir) / 40.0));
+//  }
+
+//  updateNavigationLogic();
+//  environment.update(dt_ms);
+//}
+
 void SimulatedBoat::stepSimulation(unsigned long dt_ms) {
+  if (windChaos > 0.0) {
+    unsigned long currentTime = environment.getState().time;
+    
+    if (currentTime - lastWindChangeTime > 7200000 || lastWindChangeTime == 0) {
+       
+        double maxShift = 100.0 * windChaos;
+        double shift = ((std::rand() % 2000) / 1000.0 - 1.0) * maxShift; 
+        
+        targetWindDir = initialWindDirection + shift;
+        lastWindChangeTime = currentTime == 0 ? 1 : currentTime;
+        std::cout << "[METEO] Nouvelle bascule en approche ! Cible: " << targetWindDir << "°" << std::endl;
+    }
+
+    double diff = targetWindDir - windDirection;
+    while (diff > 180.0) diff -= 360.0;
+    while (diff < -180.0) diff += 360.0;
+    
+    // Il va mettre environ 2 heures pour atteindre sa cible
+    double newWindDir = windDirection + (diff * (dt_ms / 7200000.0));
+    
+    double gust = ((std::rand() % 100) / 100.0 - 0.5) * 4.0 * windChaos;
+    double newWindSpd = std::max(2.0, 5.0 + gust); // Ne tombe jamais sous 2 m/s
+
+    setWind(newWindDir, newWindSpd);
+
+    corridorWidth = 100.0 + (5900.0 * windChaos * (std::abs(diff) / 100.0));
+  }
+
   updateNavigationLogic();
   environment.update(dt_ms);
 }
