@@ -12,6 +12,7 @@
 
 #include "sim_environment.hpp"
 #include "control/HeadingGate.h"   // REAL firmware heading gate (GPS-only heading)
+#include "navigation.h"            // NavState (per-boat nav state, see S1)
 #include <string>
 #include <vector>
 #include <iostream>
@@ -63,7 +64,14 @@ public:
      * Exécute la simulation pour un temps donné
      */
     void runSimulation(unsigned long duration_ms, unsigned long timeStep_ms = 100);
-    
+
+    // === Pass/fail outcome of the last "navigate"-phase runSimulation() call ===
+    // Added so the twin can be used as an automated regression gate (main() exit code)
+    // instead of requiring a human to read "All waypoints reached!" in the console log.
+    enum class RunOutcome { NotRun, Converged, Stuck, TimedOut };
+    RunOutcome    outcome()       const { return outcome_; }
+    double        convergeTimeS() const { return convergeTimeMs_ / 1000.0; }
+
     const SimBoatState& getState() const { return environment.getState(); }
     const std::vector<SimBoatState>& getHistory() const { return environment.getHistory(); }
     double getInitialWindDir() const { return initialWindDirection; }
@@ -113,6 +121,11 @@ public:
     // Idle firmware = all actuators neutral (sail centred → no drive, propeller stopped).
     void   setSpeed(double speedMs) { environment.setSpeed(speedMs); }
     void   setRudderBias(double deg) { environment.setRudderBias(deg); }
+    // Courant marin (m/s, direction VERS LAQUELLE il porte) — voir
+    // SimulationEnvironment::setCurrent(). Défaut jamais appelé = pas de courant.
+    void   setCurrent(double dirDeg, double speedMs) { environment.setCurrent(dirDeg, speedMs); }
+    // Gain de leeway ILLUSTRATIF — voir SimulationEnvironment::setLeewayGain().
+    void   setLeewayGain(double gain) { environment.setLeewayGain(gain); }
     void   holdNeutral() { environment.setServoAngles(0.0f, 0.0f); environment.setPropellerSpeed(0.0); }
     // Perte de fix périodique : toutes les periodS secondes, pas de fix pendant durationS.
     void   setGpsDropout(unsigned long periodS, unsigned long durationS) {
@@ -129,6 +142,11 @@ private:
     bool          idealGps;
     HeadingGate   gate;
     GpsPosition   gps;
+    // Per-boat nav state (corridor anchors, gybe phase, learnt rudder trim) — see S1:
+    // nav_handleNavigation() holds this as a process-wide static, which would leak
+    // across the six independent scenarios run in one process. Owned here instead,
+    // like AutoController::state_ and AdversarialBoat::nav_.
+    NavState      navState_{};
     unsigned long lastGpsMs;
     bool          acquiring = false;
     unsigned long acquireStartMs = 0;
@@ -139,6 +157,9 @@ private:
     uint32_t      rng;
     unsigned long stepsNoHeading;
     unsigned long stepsNav;
+    // Set at the end of runSimulation() — see the RunOutcome accessors above.
+    RunOutcome    outcome_ = RunOutcome::NotRun;
+    unsigned long convergeTimeMs_ = 0;
     void   updateGpsModel(const SimBoatState& s);
     double noise(double amplitude);   // uniforme dans [-amplitude, +amplitude], déterministe
     int currentWaypointId;

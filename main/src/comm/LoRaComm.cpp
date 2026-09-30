@@ -5,6 +5,8 @@
 #include "../config/DebugConfig.h"
 #include "../config/Calibration.h"
 #include "Heartbeat.h"
+#include <cmath>
+#include <cstdlib>
 
 void LoRaComm::begin(LoRaRadio& radio, DroneApp& app) {
     radio_ = &radio;
@@ -137,26 +139,53 @@ void LoRaComm::handleWaypoints(const char* msg) {
     MissionPlan plan{};
     plan.mode = MissionMode::Linear;
     char* p   = pts;
-    for (int i = 0; i < count && plan.count < MissionPlan::MAX_WAYPOINTS; i++) {
+    bool ok = true;
+    for (int i = 0; i < count; i++) {
         double lat = atof(p);
         char* c1 = strchr(p, ',');
-        if (!c1) break;
+        if (!c1) { ok = false; break; }
         p = c1 + 1;
         double lon = atof(p);
+        // Range-check + reject the (0,0) sentinel: atof() on a truncated/garbled
+        // field silently yields 0.0, which would otherwise look like a valid
+        // waypoint off the coast of Africa that the boat dutifully sails toward.
+        if (lat < -90.0 || lat > 90.0 || lon < -180.0 || lon > 180.0 ||
+            (lat == 0.0 && lon == 0.0)) {
+            ok = false;
+            break;
+        }
         plan.waypoints[plan.count++] = {lat, lon, 10.0f};
         char* c2 = strchr(p, ',');
-        if (c2) p = c2 + 1; else break;
+        if (c2) { p = c2 + 1; }
+        else if (i + 1 < count) { ok = false; break; }  // fewer points than "number" claimed
     }
-    if (plan.count > 0) {
+    // All-or-nothing: never commit a plan truncated by a parse/range failure —
+    // the boat must keep the old mission rather than sail toward a bad prefix.
+    if (ok && plan.count == count) {
         app_->loadMission(plan);
         DBG_RADIO("CMD: waypoints loaded (%u points)", plan.count);
+    } else {
+        DBG_RADIO("REJECTED: waypoints parse/range failure");
     }
 }
 
 void LoRaComm::handleWindCommand(const char* msg) {
     const char* valPtr = strstr(msg, "\"value\":");
     if (!valPtr) return;
-    float windDeg = (float)atoi(valPtr + 8);
+    char* endPtr = nullptr;
+    long raw = strtol(valPtr + 8, &endPtr, 10);
+    // Reject a non-numeric or wildly out-of-range payload (corrupted/truncated radio
+    // frame) instead of feeding it straight into the nav math as a "valid" heading.
+    if (endPtr == valPtr + 8 || raw < -36000 || raw > 36000) {
+        DBG_RADIO("REJECTED: wind-command bad value");
+        return;
+    }
+    // Normalize into [0,360) — same fmod-based wrap as navigation.h's
+    // nav_normalizeAngle, duplicated here to keep LoRaComm decoupled from the
+    // navigation headers (and from the USE_OLD_NAVIGATION switch).
+    double normalized = fmod((double)raw, 360.0);
+    if (normalized < 0.0) normalized += 360.0;
+    float windDeg = (float)normalized;
     app_->setWindDirection(windDeg);
     DBG_RADIO("CMD: wind-command %.0f deg", windDeg);
 }

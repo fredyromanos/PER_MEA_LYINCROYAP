@@ -21,6 +21,11 @@ constexpr double SURGE_R_LIN    = 0.9;    // N·s/m, linear hull resistance
 constexpr double SURGE_M_EFF    = 50.0;   // kg, mass + added mass
 constexpr double SURGE_WIND_REF = 5.0;    // m/s, reference wind for the drive law
 
+// ── Leeway clamp (docs/SIMULATION_PHYSICS_REVIEW.md Appendix) ──
+// ILLUSTRATIVE, not measured. The gain itself (default reference 0.040) lives on
+// SimulationEnvironment::leewayGain (default 0 = disabled); this cap is shared.
+constexpr double MAX_LEEWAY_SPEED_MPS = 0.35;  // m/s
+
 SimulationEnvironment::SimulationEnvironment() {
     state.latitude = 0;
     state.longitude = 0;
@@ -30,6 +35,8 @@ SimulationEnvironment::SimulationEnvironment() {
     state.rudderAngle = 0;
     state.windDirection = 0;
     state.windSpeed = 5.0;  // 5 m/s par défaut
+    state.courseOverGround = 0;
+    state.speedOverGround = 0;
     state.time = 0;
 }
 
@@ -40,6 +47,9 @@ void SimulationEnvironment::init(double startLat, double startLng, double windDi
     state.speed = 0;
     state.windDirection = windDir;
     state.windSpeed = windSpd;
+    // Au repos, sans courant, la route sur le fond = le cap (comme AdversarialBoat::init()).
+    state.courseOverGround = initialHeading;
+    state.speedOverGround = 0;
     state.time = 0;
     history.clear();
     history.push_back(state);
@@ -194,18 +204,78 @@ void SimulationEnvironment::updateBoatDynamics(float aileronAngle, float rudderO
     while (state.heading < 0) state.heading += 360;
     
     // ════════════════════════════════════════════════════════════
-    // 5. DÉPLACEMENT GPS
+    // 5. DÉPLACEMENT GPS — vitesse SUR LE FOND (over ground)
     // ════════════════════════════════════════════════════════════
-    double moveDistanceM = state.speed * dt_s;
-    double dx = moveDistanceM * std::sin(state.heading * M_PI / 180.0);
-    double dy = moveDistanceM * std::cos(state.heading * M_PI / 180.0);
-    
-    double metersPerDegreeLat = EARTH_RADIUS_M * M_PI / 180.0;
-    double refLat = state.latitude;
-    double metersPerDegreeLng = EARTH_RADIUS_M * std::cos(refLat * M_PI / 180.0) * M_PI / 180.0;
-    
-    state.latitude += dy / metersPerDegreeLat;
-    state.longitude += dx / metersPerDegreeLng;
+    // heading/speed ci-dessus restent le cap et la vitesse À TRAVERS L'EAU (ce que
+    // voile/safran/coque "sentent" — inchangés par courant ou leeway). Un vrai
+    // récepteur GPS, lui, mesure le déplacement SUR LE FOND = vitesse à travers
+    // l'eau + dérive de coque (leeway) + courant : c'est ce que courseOverGround/
+    // speedOverGround exposent, et c'est CE vecteur qui déplace le bateau.
+    if (currentSpeedMs == 0.0 && leewayGain == 0.0) {
+        // Chemin rapide : sans courant ni leeway, sur-le-fond ≡ à-travers-l'eau PAR
+        // DÉFINITION. Reproduit l'ancien calcul bit-à-bit (currentSpeedMs=0 et
+        // leewayGain=0 sont les défauts jamais changés par les 6 scénarios existants
+        // — régression de non-régression, voir docs/ADVERSARIAL_FINDINGS.md).
+        state.speedOverGround  = state.speed;
+        state.courseOverGround = state.heading;
+
+        double moveDistanceM = state.speed * dt_s;
+        double dx = moveDistanceM * std::sin(state.heading * M_PI / 180.0);
+        double dy = moveDistanceM * std::cos(state.heading * M_PI / 180.0);
+
+        double metersPerDegreeLat = EARTH_RADIUS_M * M_PI / 180.0;
+        double refLat = state.latitude;
+        double metersPerDegreeLng = EARTH_RADIUS_M * std::cos(refLat * M_PI / 180.0) * M_PI / 180.0;
+
+        state.latitude += dy / metersPerDegreeLat;
+        state.longitude += dx / metersPerDegreeLng;
+    } else {
+        const double headingRad = state.heading * M_PI / 180.0;
+        double velocityEast  = state.speed * std::sin(headingRad);
+        double velocityNorth = state.speed * std::cos(headingRad);
+
+        // ── Leeway (dérive sous le vent), ILLUSTRATIF, non mesuré — structure
+        // salvaged from the June 2026 model (docs/SIMULATION_PHYSICS_REVIEW.md
+        // Appendix), adaptée au vent VRAI scalaire déjà calculé en §1 ci-dessus
+        // (relativeWind) plutôt qu'au vecteur de vent APPARENT complet de cette
+        // annexe, pour rester un changement minimal (le vent apparent est Stage
+        // deux/trois de ce même document). leewayGain=0 (défaut) ⇒ bloc inactif.
+        if (leewayGain != 0.0) {
+            const double rightEast  = std::cos(headingRad);   // unité à tribord du cap
+            const double rightNorth = -std::sin(headingRad);
+            // Écoulement du vent VRAI (direction VERS LAQUELLE il souffle =
+            // windDirection+180, puisque windDirection est D'OÙ IL VIENT) projeté
+            // à tribord du cap. Algébriquement = -windSpeed*sin(relativeWind)
+            // (identique au produit scalaire de l'annexe avec le vent vrai).
+            const double crossWindMps = -state.windSpeed *
+                                         std::sin(relativeWind * M_PI / 180.0);
+            double leewaySpeedMps = crossWindMps * leewayGain;
+            if (leewaySpeedMps >  MAX_LEEWAY_SPEED_MPS) leewaySpeedMps =  MAX_LEEWAY_SPEED_MPS;
+            if (leewaySpeedMps < -MAX_LEEWAY_SPEED_MPS) leewaySpeedMps = -MAX_LEEWAY_SPEED_MPS;
+            velocityEast  += leewaySpeedMps * rightEast;
+            velocityNorth += leewaySpeedMps * rightNorth;
+        }
+
+        // ── Courant marin : vecteur ajouté à la vitesse à travers l'eau (+leeway).
+        // currentDirDeg = direction VERS LAQUELLE le courant PORTE (convention
+        // "set" océanographique, voir setCurrent() ; adversarial/boat_model.hpp
+        // ::currentDir utilise la même convention — les deux outils sont d'accord).
+        velocityEast  += currentSpeedMs * std::sin(currentDirDeg * M_PI / 180.0);
+        velocityNorth += currentSpeedMs * std::cos(currentDirDeg * M_PI / 180.0);
+
+        state.speedOverGround  = std::hypot(velocityEast, velocityNorth);
+        state.courseOverGround = std::atan2(velocityEast, velocityNorth) * 180.0 / M_PI;
+        if (state.courseOverGround < 0) state.courseOverGround += 360.0;
+
+        const double moveEastM  = velocityEast  * dt_s;
+        const double moveNorthM = velocityNorth * dt_s;
+        const double metersPerDegreeLat = EARTH_RADIUS_M * M_PI / 180.0;
+        const double refLat = state.latitude;
+        const double metersPerDegreeLng = EARTH_RADIUS_M * std::cos(refLat * M_PI / 180.0) * M_PI / 180.0;
+
+        state.latitude  += moveNorthM / metersPerDegreeLat;
+        state.longitude += moveEastM  / metersPerDegreeLng;
+    }
 }
 
 void SimulationEnvironment::computeDistanceToWaypoint(double wptLat, double wptLng,

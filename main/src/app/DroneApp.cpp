@@ -95,6 +95,19 @@ void DroneApp::controlTick(uint32_t nowMs) {
     if (activeMode_ != prevMode_) {
         DBG_APP("mode: %s -> %s  (CH5=%u)",
             modeName(prevMode_), modeName(activeMode_), (unsigned)lastFrame_.ch5);
+        // Leaving Automatic/Failsafe for Manual/Sail: drop the stale corridor,
+        // gybe-avoidance phase and watchdog state so a later resume on the same
+        // waypoint doesn't steer on geometry left over from the manual excursion.
+        // (Failsafe<->Automatic is not a real exit — both follow the mission —
+        // so this must not fire there.) The learnt rudder trim survives: it is a
+        // hardware property, not manoeuvre state (see AutoController::reset()).
+        const bool wasAutoLike = (prevMode_ == ControlMode::Automatic ||
+                                  prevMode_ == ControlMode::Failsafe);
+        const bool nowAutoLike = (activeMode_ == ControlMode::Automatic ||
+                                  activeMode_ == ControlMode::Failsafe);
+        if (wasAutoLike && !nowAutoLike) {
+            autoCtrl_.reset();
+        }
         prevMode_ = activeMode_;
     }
 

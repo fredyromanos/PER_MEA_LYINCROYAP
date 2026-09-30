@@ -18,6 +18,11 @@ import serial
 import serial.tools.list_ports
 
 DEFAULT_BAUD = 115200
+# readline() rend ce qu'il a pu lire au bout de son timeout, même sans '\n' —
+# une trame à cheval sur deux lectures serait sinon traitée en deux morceaux
+# et perdue en entier (même défaut que IHM/app/serial_link.py). Le résidu de
+# ligne partielle est bufferisé au niveau de l'instance SerialLink (self._residual).
+RESIDUAL_MAX_BYTES = 4096   # borne : une ligne jamais terminée ne doit pas grossir indéfiniment
 # Nº de serie CP2104 del transceiver (grabado en fábrica, único por chip).
 DEFAULT_TRANSCEIVER_SERIAL = "01C00B54"
 
@@ -104,6 +109,7 @@ class SerialLink:
         self._thread = None
         self._ser = None
         self.current_port = None
+        self._residual = ""
 
     # ---- API pública ----
     def start(self):
@@ -147,6 +153,7 @@ class SerialLink:
                 pass
         self._ser = None
         self.current_port = None
+        self._residual = ""   # un fragment d'avant la coupure ne doit pas survivre à la reconnexion
 
     def _connect(self):
         port, source = self._resolve_port()
@@ -168,7 +175,18 @@ class SerialLink:
             return False
 
     def _read_once(self):
-        line = self._ser.readline().decode("utf-8", errors="replace").strip()
+        chunk = self._ser.readline().decode("utf-8", errors="replace")
+        if not chunk:
+            return   # rien reçu pendant le timeout
+
+        self._residual += chunk
+        if not self._residual.endswith("\n"):
+            if len(self._residual) > RESIDUAL_MAX_BYTES:
+                self._residual = ""
+            return   # ligne incomplète : on la complètera au prochain appel
+
+        line = self._residual.strip()
+        self._residual = ""
         if not line:
             return
         payload = extract_json_payload(line)

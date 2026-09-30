@@ -28,7 +28,10 @@ struct HostSerial {
     int   read()               { return -1; }
     explicit operator bool() const { return true; }
 };
-static HostSerial Serial;
+// [[maybe_unused]]: DBG_* macros that would reference this are compile-time
+// gated (DebugConfig.h), so plenty of TUs never touch it — that's expected,
+// not a real unused-variable bug, and must not warn under -Wall -Wextra.
+[[maybe_unused]] static HostSerial Serial;
 
 // --- ADC surface (for BatteryAdc host tests) ---------------------------------
 // Declared here so driver .cpp compiles; DEFINED by the test TU (test_hw.cpp),

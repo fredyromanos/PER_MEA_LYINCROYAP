@@ -245,7 +245,9 @@ static float wrap180(float angleDeg) {
 
 static uint16_t clampEscUs(int32_t us) {
     if (us < Calibration::ESC_STOP_US) return Calibration::ESC_STOP_US;
-    if (us > Calibration::ESC_MAX_US)  return Calibration::ESC_MAX_US;
+    // Clamp to the documented AUTONOMOUS ceiling (1850), not the full-forward
+    // ESC_MAX_US (2000) — this is the auto speed path, not manual.
+    if (us > Calibration::AUTO_ESC_MAX_US) return Calibration::AUTO_ESC_MAX_US;
     return (uint16_t)us;
 }
 

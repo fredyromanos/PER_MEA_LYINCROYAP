@@ -16,6 +16,7 @@
 #include <cstring>
 #include <random>
 #include <algorithm>
+#include <chrono>
 
 #include "navigation/navigation.h"
 #include "navigation/Navigator.h"
@@ -113,6 +114,88 @@ void test_NavHelpers() {
                nav_crossTrackErrorMeters(0,0, 0,0.001, 0,0.0005), 0.0, 0.5);
     CHECK("off-path cross-track nonzero",
           std::fabs(nav_crossTrackErrorMeters(0,0, 0,0.001, 0.0002,0.0005)) > 1.0);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Angle-wrap boundaries — nav_normalizeAngle/nav_relativeAngle/nav_oppositeAngle
+// were just rewritten from loop-based to fmod-based wrapping. This is where this
+// codebase's angle bugs live, and nothing above pins the boundaries or the
+// large-input performance that motivated the rewrite (a corrupted radio payload
+// used to be able to stall the control loop for seconds on the ESP32 — see the
+// historical note below). All expected values here were independently computed
+// (Python math.fmod, matching C++ fmod semantics) and cross-checked against the
+// documented ranges: normalizeAngle -> [0,360), relativeAngle -> (-180,180].
+// ═════════════════════════════════════════════════════════════════════════════
+void test_AngleWrapBoundaries() {
+    section("angle wrap — exact boundaries, crossing, negatives, huge inputs");
+
+    // ── exact boundaries ────────────────────────────────────────────────────
+    CHECK_NEAR("normalize(0) → 0",     nav_normalizeAngle(0),     0.0, 1e-9);
+    CHECK_NEAR("normalize(360) → 0",   nav_normalizeAngle(360),   0.0, 1e-9);
+    CHECK_NEAR("normalize(180) → 180", nav_normalizeAngle(180), 180.0, 1e-9);
+    CHECK_NEAR("normalize(-180) → 180",nav_normalizeAngle(-180),180.0, 1e-9);
+
+    // Preserve the EXISTING convention at exactly +-180: relativeAngle's documented
+    // range is (-180,180] (open at -180, closed at +180) -- pin what the code
+    // actually does, not a preference. Both +180 and -180 as the raw difference
+    // must land on the SAME output, +180 (never -180).
+    CHECK_NEAR("relAngle(0,180) → 180 (upper bound, closed)",  nav_relativeAngle(0,180),  180.0, 1e-9);
+    CHECK_NEAR("relAngle(0,-180) → 180 (lower bound wraps to +180, never -180)",
+               nav_relativeAngle(0,-180), 180.0, 1e-9);
+    CHECK_NEAR("relAngle(0,0) → 0",    nav_relativeAngle(0,0),     0.0, 1e-9);
+    CHECK_NEAR("relAngle(0,360) → 0",  nav_relativeAngle(0,360),   0.0, 1e-9);
+
+    CHECK_NEAR("opposite(0) → 180",    nav_oppositeAngle(0),   180.0, 1e-9);
+    CHECK_NEAR("opposite(180) → 0",    nav_oppositeAngle(180),   0.0, 1e-9);
+    CHECK_NEAR("opposite(-180) → 0",   nav_oppositeAngle(-180),  0.0, 1e-9);
+    CHECK_NEAR("opposite(360) → 180",  nav_oppositeAngle(360), 180.0, 1e-9);
+
+    // ── crossing case: wrapping through 0/360 must take the SHORT way ──────
+    // reference 350, target 10 is a 20 deg step across the wrap, not -340.
+    CHECK_NEAR("relAngle(350,10) → +20, NOT -340", nav_relativeAngle(350,10),  20.0, 1e-9);
+    CHECK_NEAR("relAngle(10,350) → -20, NOT +340", nav_relativeAngle(10,350), -20.0, 1e-9);
+
+    // ── negative inputs ─────────────────────────────────────────────────────
+    CHECK_NEAR("normalize(-10) → 350",   nav_normalizeAngle(-10),  350.0, 1e-9);
+    CHECK_NEAR("normalize(-370) → 350",  nav_normalizeAngle(-370), 350.0, 1e-9);
+    CHECK_NEAR("relAngle(-170,170) → -20 (both negative/crossing)",
+               nav_relativeAngle(-170,170), -20.0, 1e-9);
+    CHECK_NEAR("relAngle(170,-170) → +20",
+               nav_relativeAngle(170,-170),  20.0, 1e-9);
+
+    // ── large out-of-range magnitudes: must wrap correctly AND return instantly.
+    // The pre-fix loop-based nav_normalizeAngle took 5,965,232 iterations
+    // (14.6 ms on x86, an estimated 0.5-1.5 s on a 240 MHz ESP32 -- a control-loop
+    // stall) for input 2147483647. fmod is O(1) regardless of magnitude: this
+    // test both pins the wrapped VALUE and, via the wall-clock budget below,
+    // guards against that loop-based implementation ever regressing back in.
+    CHECK_NEAR("normalize(400) → 40",          nav_normalizeAngle(400),   40.0, 1e-9);
+    CHECK_NEAR("normalize(-500) → 220",        nav_normalizeAngle(-500), 220.0, 1e-9);
+    CHECK_NEAR("normalize(9999) → 279",        nav_normalizeAngle(9999), 279.0, 1e-9);
+    CHECK_NEAR("normalize(2147483647) → 127",  nav_normalizeAngle(2147483647.0), 127.0, 1e-6);
+    CHECK_NEAR("normalize(-2147483647) → 233", nav_normalizeAngle(-2147483647.0),233.0, 1e-6);
+
+    CHECK_NEAR("relAngle(0,400) → 40",          nav_relativeAngle(0,400),    40.0, 1e-9);
+    CHECK_NEAR("relAngle(0,-500) → -140",       nav_relativeAngle(0,-500), -140.0, 1e-9);
+    CHECK_NEAR("relAngle(0,9999) → -81",        nav_relativeAngle(0,9999),  -81.0, 1e-9);
+    CHECK_NEAR("relAngle(0,2147483647) → 127",  nav_relativeAngle(0,2147483647.0), 127.0, 1e-6);
+    CHECK_NEAR("relAngle(0,-2147483647) → -127",nav_relativeAngle(0,-2147483647.0),-127.0,1e-6);
+
+    // Wall-clock budget: 100,000 calls at this magnitude must complete well
+    // under the time a SINGLE old loop-based call used to take (14.6 ms).
+    // A generous 50 ms ceiling still leaves ~1000x headroom over O(1) fmod cost
+    // while being tight enough to fail hard if a loop ever creeps back in.
+    auto t0 = std::chrono::steady_clock::now();
+    volatile double sink = 0.0;
+    for (int i = 0; i < 100000; ++i) {
+        sink += nav_normalizeAngle(2147483647.0);
+        sink += nav_relativeAngle(0.0, -2147483647.0);
+    }
+    auto t1 = std::chrono::steady_clock::now();
+    double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    (void)sink;
+    CHECK(("huge-input wrap returns instantly: 200000 calls < 50 ms (took " +
+           std::to_string(ms) + " ms)").c_str(), ms < 50.0);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -251,6 +334,60 @@ void test_MissionManager() {
     // stop() → Idle
     cm.stop();
     CHECK("stop → Idle", (uint8_t)cm.state()==(uint8_t)MissionState::Idle);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// MissionManager — boundary: a plan at exactly MissionPlan::MAX_WAYPOINTS (16).
+// CLAUDE.md's architecture section says "max 32" -- the code (MissionPlan.h) is
+// authoritative at 16. Nothing exercised the array-filling boundary before.
+// ═════════════════════════════════════════════════════════════════════════════
+void test_MissionManagerMaxWaypoints() {
+    section("MissionManager — plan at exactly MAX_WAYPOINTS (16)");
+
+    static_assert(MissionPlan::MAX_WAYPOINTS == 16,
+                  "test assumes the documented 16-waypoint boundary");
+
+    MissionManager mm;
+    MissionPlan plan{};
+    plan.mode = MissionMode::Linear;
+    for (uint8_t i = 0; i < MissionPlan::MAX_WAYPOINTS; ++i) {
+        plan.waypoints[i] = {48.3000 + 0.001 * i, -4.5000, 10.0f};
+    }
+    plan.count = MissionPlan::MAX_WAYPOINTS;
+    mm.loadMission(plan);
+    mm.setHome(48.2900, -4.5000);
+    mm.start();
+
+    CHECK("plan reports 16 waypoints", mm.waypointCount() == MissionPlan::MAX_WAYPOINTS);
+    CHECK("start → Running", (uint8_t)mm.state() == (uint8_t)MissionState::Running);
+    CHECK("starts at index 0", mm.currentIndex() == 0);
+
+    Waypoint tgt;
+    // Walk every waypoint 0..14 by arriving exactly on it; each arrival must
+    // advance to the next index without skipping or wrapping early.
+    for (uint8_t i = 0; i + 1 < MissionPlan::MAX_WAYPOINTS; ++i) {
+        bool active = mm.update(gp(plan.waypoints[i].lat, plan.waypoints[i].lon), tgt);
+        char label[96];
+        std::snprintf(label, sizeof label, "wp[%u] reached -> advances to idx %u", i, i + 1);
+        CHECK(label, active && mm.currentIndex() == (uint8_t)(i + 1));
+    }
+    CHECK("walked all the way to the LAST waypoint (idx 15)",
+          mm.currentIndex() == MissionPlan::MAX_WAYPOINTS - 1);
+    CHECK("still Running just before the last arrival",
+          (uint8_t)mm.state() == (uint8_t)MissionState::Running);
+
+    // Arrive on waypoint 15 (the last one): must transition to Returning, not
+    // wrap back into the array (off-by-one at the MAX_WAYPOINTS boundary would
+    // either skip this or index past the fixed-size array).
+    const uint8_t last = MissionPlan::MAX_WAYPOINTS - 1;
+    bool activeAfterLast = mm.update(gp(plan.waypoints[last].lat, plan.waypoints[last].lon), tgt);
+    CHECK("last waypoint (15) reached -> Returning", (uint8_t)mm.state() == (uint8_t)MissionState::Returning);
+    CHECK("Returning yields the home target", activeAfterLast && std::fabs(tgt.lat - 48.2900) < 1e-9);
+
+    // Arrive home -> Complete.
+    bool stillActive = mm.update(gp(48.2900, -4.5000), tgt);
+    CHECK("home reached -> mission Complete", !stillActive &&
+          (uint8_t)mm.state() == (uint8_t)MissionState::Complete);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -432,9 +569,11 @@ int main() {
     printf("=== SeaDrone navigation-core tests ===\n");
     test_Navigator();
     test_NavHelpers();
+    test_AngleWrapBoundaries();
     test_NavBranches();
     test_WindObservation();
     test_MissionManager();
+    test_MissionManagerMaxWaypoints();
     test_NavProperties();
     test_WindObsSweep();
     test_NavTrim();

@@ -60,11 +60,18 @@ void SimulatedBoat::updateGpsModel(const SimBoatState& s) {
     gps.ageMs       = 0;
     gps.lat         = s.latitude + northM / 111320.0;
     gps.lon         = s.longitude + eastM / (111320.0 * std::cos(s.latitude * M_PI / 180.0));
-    gps.speedKmph   = (float)(s.speed * 3.6);
+    // A real GPS receiver measures velocity OVER THE GROUND (Doppler / position delta),
+    // not the boat's speed through the water — so the gate and the reported course must
+    // come from speedOverGround/courseOverGround, not heading/speed. This is exactly the
+    // case current is meant to exercise: under strong current a boat nearly stationary
+    // through the water can still be moving (and turning course-valid) over the ground.
+    // With no current/leeway (defaults), speedOverGround==speed and courseOverGround==
+    // heading exactly, so this is bit-for-bit identical to the old heading/speed-based code.
+    gps.speedKmph   = (float)(s.speedOverGround * 3.6);
     gps.speedValid  = true;
     gps.courseValid = gps.speedKmph >= Calibration::GPS_COURSE_MIN_SPEED_KMPH;
     if (gps.courseValid) {
-        gps.courseDeg = (float)nav_normalizeAngle(s.heading + noise(SIM_GPS_CRS_NOISE_DEG));
+        gps.courseDeg = (float)nav_normalizeAngle(s.courseOverGround + noise(SIM_GPS_CRS_NOISE_DEG));
         gps.courseSeq++;
     }
 }
@@ -129,6 +136,7 @@ void SimulatedBoat::startNavigation() {
         // Réinitialiser le déphasage safran pour la navigation
         rudderAngle = 0;
         gate.reset();   // comme AutoController::reset() au démarrage de mission
+        navState_ = NavState{};   // S1: état nav propre à ce bateau, pas de fuite inter-scénario
         std::cout << "[BOAT] GPS model: " << (idealGps ? "IDEAL (exact heading)"
                                                        : "REALISTIC (1 Hz, noise, no course when slow)")
                   << std::endl;
@@ -244,8 +252,12 @@ void SimulatedBoat::updateNavigationLogic() {
                                                       distance, wptHeading);
         }
 
-        // Appel de la VRAIE fonction de navigation
-        NavResult r = nav_handleNavigation(
+        // Appel de la VRAIE fonction de navigation, avec l'état nav PROPRE à ce
+        // bateau (S1) — nav_handleNavigation() utiliserait un `static NavState`
+        // partagé par tout le process, ce qui ferait fuiter corridor/gybe/trim
+        // d'un scénario à l'autre quand les 6 scénarios tournent dans le même process.
+        NavResult r = nav_handleNavigationWithState(
+            navState_,
             boatHeading,        // cap connu du bateau (gate GPS, ou exact en mode idéal)
             wptHeading,         // cap vers WPT
             distance,           // distance au WPT
@@ -341,23 +353,75 @@ void SimulatedBoat::stepSimulation(unsigned long dt_ms) {
 void SimulatedBoat::runSimulation(unsigned long duration_ms, unsigned long timeStep_ms) {
     unsigned long elapsedTime = 0;
     int stepCount = 0;
-    
+
+    // Stuck detector — mirrors adversarial/metrics.hpp::runTrial(): no net closing of
+    // >5 m on the current waypoint over a 300 s window ⇒ stuck (limit cycle). Same
+    // window (300 s) and threshold (5 m) as the adversarial harness, so the two tools
+    // agree on what "stuck" means. Only armed while actively navigating, so it cannot
+    // fire during wind-observation/idle phases.
+    const unsigned long STUCK_WINDOW_MS  = 300000;  // 300 s, same as adversarial/metrics.hpp
+    const double        STUCK_PROGRESS_M = 5.0;     // same as adversarial/metrics.hpp
+    unsigned long windowStartMs = 0;
+    double        distAtWindowStart = -1.0;
+    int           windowWptId = -1;
+    bool          stuckThisRun = false;
+
     while (elapsedTime < duration_ms) {
         stepSimulation(timeStep_ms);
         elapsedTime += timeStep_ms;
         stepCount++;
-        
+
         // Afficher le statut toutes les 10 secondes simulées
         if (stepCount % (10000 / timeStep_ms) == 0) {
             printStatus();
         }
-        
+
+        if (boatMode == "navigate" && !waypoints.empty() && currentWaypointId >= 0) {
+            if (currentWaypointId != windowWptId) {
+                // Advancing to a new waypoint is itself progress — restart the window.
+                windowWptId = currentWaypointId;
+                windowStartMs = elapsedTime;
+                distAtWindowStart = -1.0;
+            }
+            if (distAtWindowStart < 0.0 || elapsedTime - windowStartMs >= STUCK_WINDOW_MS) {
+                double d, h;
+                const SimWaypoint& wpt = waypoints[currentWaypointId];
+                environment.computeDistanceToWaypoint(wpt.lat, wpt.lng, d, h);
+                if (distAtWindowStart < 0.0) {
+                    distAtWindowStart = d;
+                    windowStartMs = elapsedTime;
+                } else if (distAtWindowStart - d < STUCK_PROGRESS_M) {
+                    stuckThisRun = true;
+                    break;
+                } else {
+                    distAtWindowStart = d;
+                    windowStartMs = elapsedTime;
+                }
+            }
+        }
+
         // Arrêter tôt si tous les waypoints sont atteints
         if (boatMode == "standby" && currentWaypointId >= 0) {
             break;
         }
     }
-    
+
+    // Record the outcome of this call only if it was actually a navigation phase (a
+    // wind-observation-phase call that simply runs out its fixed duration leaves the
+    // outcome from the real navigation call untouched).
+    if (boatMode == "standby" && currentWaypointId >= 0) {
+        outcome_ = RunOutcome::Converged;
+        convergeTimeMs_ = elapsedTime;
+    } else if (stuckThisRun) {
+        outcome_ = RunOutcome::Stuck;
+        convergeTimeMs_ = elapsedTime;
+        std::cout << "[SIM] STUCK: no >" << STUCK_PROGRESS_M << "m progress on waypoint "
+                  << currentWaypointId << " in " << (STUCK_WINDOW_MS / 1000) << "s" << std::endl;
+    } else if (boatMode == "navigate") {
+        outcome_ = RunOutcome::TimedOut;
+        convergeTimeMs_ = elapsedTime;
+    }
+
     std::cout << "\n[SIM] Simulation finished!" << std::endl;
     printStatus();
 }

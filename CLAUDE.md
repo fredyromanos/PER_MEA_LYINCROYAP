@@ -83,10 +83,13 @@ The drone is a sail-powered surface vehicle. The key mechanics:
 - Rotor servo: **limited to ±90°** → ROTOR_MIN_US=1417, ROTOR_MAX_US=1583, center 1500 µs, deadband ±35 µs, ROTOR_RANGE_DEG=90
   - Full hardware range is 1000–2000 µs (±3 turns = ±1080°), limited to ±83 µs from center for controllability
 - CH4 measured travel: CH4_MIN_US=1180, CH4_MAX_US=1790 (center ~1500 µs) — maps to ROTOR_MIN/MAX in manual mode
-- Auto-mode rudder uses only ±ROTOR_AUTO_RANGE_DEG=20° of winch travel (full ±90° too aggressive)
+- **⚠️ Auto-mode rudder range — safety-relevant disagreement (corrected 2026-09-30; see also §6 Phase 6 AutoController row and §14 Prerequisites).** `ROTOR_AUTO_RANGE_DEG` no longer exists anywhere in the code (zero hits in `main/`, `test/`, `simulation/`). The code now allows **±110°** of winch travel via `ROTOR_AUTO_MIN_US=1399` / `ROTOR_AUTO_MAX_US=1601` (`Calibration.h`), clamped at the end of `AutoController::rudderToUs()` and again in `McpwmActuators::write()`. This is now WIDER than both figures this document previously treated as the limit:
+  - the **±20° bench-validated envelope** flashed to the boat on 2026-06-04 (see Progress Log below — that entry explicitly records mapping onto the full ±90° winch as "too aggressive on the bench", which is why ±20° was chosen);
+  - the **"measured ±90° physical travel"** that `Calibration.h`'s own comment still claims for the Safran linkage.
+  A sweep of 5184 geometries through the real navigation state machine found: with a freshly-reset state the rudder command never exceeds 90° (worst case 80.1° = 1574 µs); but **66.0%** of geometries exceed the ±20° bench envelope even at zero trim, and once the auto-trim integrator has wound up to ±40° — its long-run norm, since trim is applied outside the ±20° correction clamp and persists across waypoints — **10.4–13.2%** exceed the ±90° mechanical travel and up to **10.4%** saturate at 110° (1601 µs). **Whether ±90° is a hard mechanical stop is an open hardware question — not resolved by this edit.** A bench measurement of the winch's real usable travel is required before any autonomous water trial (see §14).
 - ESC **BIDIRECTIONAL** (2026-06-10): ESC_REVERSE_MIN_US=1000 (−100 % reverse), ESC_NEUTRAL_US=1500 (neutral/stop, = ESC_STOP_US), ESC_MAX_US=2000 (+100 % forward); single ESC on GPIO15. ⚠️ Reverse only physically works if the ESC is programmed for bidirectional throttle via the **EPRG-3 card** — otherwise <1500 µs is ignored.
 - **Propeller (manual mode):** CH3 bidirectional ratchet throttle — CH3_FULL_US=1100 → +100 % forward, CH3_CENTER_US=1545 → 0 % stop (deadband ESC_CENTER_DEADBAND_US=40 µs), CH3_ZERO_US=1990 → −100 % reverse. CH3=0 (lost) → neutral. **No software arming gesture** (removed — see Section 13). CH3_CENTER_US needs bench verification.
-- Slew rate limit: 30 µs/tick (prevents hard jerks on actuator changes)
+- Slew rate limit: 30 µs/tick — **ESC channel only** (`ESC_SLEW_US=30`, applied in `McpwmActuators::write()`); sail and rotor channels are clamped to their range but written straight through with no rate limiting (no `ROTOR_SLEW_US` constant exists in the code). Corrected 2026-09-30 — this line previously implied all actuators were slew-limited.
 - Battery divider: R5=562kΩ (battery→ADC), R6=120kΩ (GND), ratio=5.683, GPIO36 ADC1_CH0
 
 ---
@@ -113,10 +116,11 @@ main.ino
         │     ├── TelemetryService— LoRa heartbeat TX + command RX
         │     ├── LoggingService  — status log + sensor sample routing
         │     ├── SensorManager   — polls SensorBus, buffers samples
-        │     └── WindEstimator   — infers wind from GPS track + actuator state
+        │     └── (no WindEstimator module — corrected 2026-09-30: wind estimation is implemented
+        │            in AutoController::beginWindObservation()/observeWind(), not a separate class)
         ├── NAVIGATION
         │     ├── Navigator       — haversine distance + bearing
-        │     ├── MissionPlan     — ordered waypoint list (max 32)
+        │     ├── MissionPlan     — ordered waypoint list (max 16, corrected 2026-09-30 — see §6, §9)
         │     └── MissionManager  — state machine: Idle/Running/Holding/Completed/Failed
         ├── CONTROL
         │     ├── ModeManager     — CH5 → ControlMode enum
@@ -219,7 +223,7 @@ Parsed with `strstr()` on char buffers — no ArduinoJson dependency.
 "fix":0|1,"sat":N,"hdop":X.X,"rc":0|1,
 "wt":total,"wc":current,"wobs":NN,"rssi":-NNN}}
 ```
-- `servos.sail` = ±10° (binary), `servos.rudder` = winch degrees (manual ±90° / auto ±20°).
+- `servos.sail` = ±10° (binary), `servos.rudder` = winch degrees (manual ±90° / auto **±110°**, corrected 2026-09-30 — previously stated as ±20°; see §2 calibration notes and §14 for the unresolved ±20°/±90°/±110° disagreement).
 - `fix/sat/hdop` = GPS health; `rc` = 1 if the RC receiver is delivering pulses (any channel ≠ 0).
 - **`wt`/`wc`** = waypoints total/current (flattened from the old `waypoints:{total,current}` object — saves ~22 B). IHM reads `wt`/`wc` (fallback to old shape).
 - **`wobs`** = wind-observation progress 0–100 % — **conditional**: present ONLY while a wind measurement is running (`AutoController::windObsProgressPct()` = travelled / `WIND_OBS_DISTANCE_M`). Absent the rest of the time.
@@ -282,7 +286,13 @@ Parsed with `strstr()` on char buffers — no ArduinoJson dependency.
 
 **Notas IHM:** (1) El puerto del transceiver ya no importa — se **auto-detecta por nº de serie** (`config.py`). (2) Nunca abrir gtkterm/pyserial sobre el puerto del transceiver mientras corre la IHM — dos lectores compiten y corrompen el JSON. (3) Falta en la UI el botón **Stop** aunque el endpoint existe.
 
-### Post-Claude Phase 1 — Manual RC Control ✅ COMPLETE (⚠️ unit tests now STALE — see note)
+**Known accepted risks (security — deliberately deferred, added 2026-09-30):** this is a field/LAN student project, not an internet-facing service, so these are recorded rather than fixed:
+- **LoRa uplink is unauthenticated** — any transmitter sending bytes containing `"origin":"server","type":"command"` is obeyed, including `restart` (reaches `ESP.restart()`). Deferred because a fix touches firmware + IHM + transceiver simultaneously.
+- **IHM web API** exposes `/api/navigate`, `/api/stop`, `/api/restart`, `/api/wind-command/{direction}` as unauthenticated state-changing GET endpoints on a `0.0.0.0` bind (CSRF-able from any page on the same LAN; CORS does not block simple GETs). A GET→POST + shared-secret migration is proposed but deferred.
+- **MongoDB** was being published on `0.0.0.0:27017` without auth — **this has been fixed**, now bound to loopback only.
+- A new read-only `GET /api/wind-forecast` endpoint (Windy.com) gives the operator a real forecast wind direction to copy manually into the existing `wind-command` — it deliberately does NOT auto-send anything to the boat. Its API key lives in the gitignored `IHM/.env`. The live API call is **unverified** (the dev environment has no outbound network).
+
+### Post-Claude Phase 1 — Manual RC Control ✅ COMPLETE
 
 | Module | File | Status | Notes |
 |---|---|---|---|
@@ -297,7 +307,7 @@ Parsed with `strstr()` on char buffers — no ArduinoJson dependency.
 | `Calibration` | `config/Calibration.h` | ✅ | Servo/ESC µs values (sail positions need bench calibration) |
 | `main.ino` | `main/main.ino` | ✅ | Instantiates DroneApp, calls begin()/update() |
 
-⚠️ **Test suite stale (does NOT build):** `test/test_runner.cpp` predates the `main/src/` reorg (can't find `core/Types.h`) and the single-ESC migration (references `esc2Us`, old 1300/1700 CH5 thresholds, `isEscArmed()`, the removed arming). The "106/106" milestone is historical. Firmware itself compiles & flashes fine; the native test build is broken and needs a rewrite to match current behavior (Sail/Manual modes, CH3 inverse throttle, rotor remap). Separate task — not done yet.
+✅ **Test suite corrected 2026-09-30 (previously wrongly marked STALE here):** `test/test_runner.cpp` targets the current `main/src/` layout and the single-ESC/Sail-Manual API — no references to `esc2Us`, old CH5 thresholds, or `isEscArmed()` remain. The native suite builds and `ctest` passes **4/4** (`control_logic`, `navigation`, `hw_seam`, `gps_logic`; verified with a clean CMake build). The "106/106" milestone referenced in the 2026-04-28 log entry below is historical (test count has changed since), but the suite itself is live, not broken.
 
 ### Post-Claude Phase 2 — GPS + Navigation ✅ COMPLETE (hardware tested outdoors)
 
@@ -329,15 +339,17 @@ GPS hardware notes: board requires LiPo battery for warm starts (without battery
 
 ⚠️ The +90° offset and 30 m threshold need field validation. Manual `wind-command` (Envoi vent) is the reliable fallback. **Observability gap:** heartbeat looks identical to idle during observation — can't tell from telemetry if it's running until `wind` changes after 30 m travel.
 
-### Post-Claude Phase 6 — Autonomous Sailing ✅ CODED (untested on water, no unit tests)
+### Post-Claude Phase 6 — Autonomous Sailing ✅ CODED (untested on water; unit tests DO exist — see note)
 
 | Module | File | Status | Notes |
 |---|---|---|---|
-| `navigation.h` | `navigation/navigation.h` | ✅ | **Upgraded 2026-06-10 to DeltaGod/PER_MEA_LYINCROYAP branch `Testautoboat`** — upwind/downwind zigzag, gybe avoidance (empannage), cross-track corridor, lofer/abattre. **New vs prior port:** smarter initial tack via `nav_sideMovingTowardWaypoint()` (picks side making most progress to the waypoint, not just wind-axis side); "passed-the-waypoint-plane within corridor" arrival check via `nav_hasPassedWaypoint()`; default corridor half-width 20→**100 m**. Public entry points (`nav_handleNavigationWithState`, `nav_handleWindObservation`) UNCHANGED — drop-in. **Do not change logic.** |
+| `navigation.h` | `navigation/navigation.h` | ✅ | **Upgraded 2026-06-10 to DeltaGod/PER_MEA_LYINCROYAP branch `Testautoboat`** — upwind/downwind zigzag, gybe avoidance (empannage), cross-track corridor, lofer/abattre. **New vs prior port:** smarter initial tack via `nav_sideMovingTowardWaypoint()` (picks side making most progress to the waypoint, not just wind-axis side); "passed-the-waypoint-plane within corridor" arrival check via `nav_hasPassedWaypoint()`; default corridor half-width 20→100 m→**30 m** (corrected 2026-09-30: `navigation.h`'s own comment records a 2026-09-16 change back from 100 to 30 m — 100 m produced a single tack ~100 m off the route on a 400 m mission, while 30 m gives regular tacks for ~+7% mission time; current constant is `NAV_DEFAULT_CORRIDOR_HALF_WIDTH_M = 30.0`). Public entry points (`nav_handleNavigationWithState`, `nav_handleWindObservation`) UNCHANGED — drop-in. **Do not change logic.** |
 | `NavigationConfig.h` / `NavigationSelector.h` | `navigation/` | ✅ | Compile-time switch: `USE_OLD_NAVIGATION` (default 0 = current `navigation.h`; 1 = `oldNavigation.h`). AutoController includes the selector, not navigation.h directly. |
-| `oldNavigation.h` | `navigation/oldNavigation.h` | ✅ | Legacy fallback (same public names, empty `NavState{}`). NOT compiled unless the switch is flipped. |
-| `AutoController` | `control/AutoController.h/.cpp` | ✅ | Includes `NavigationSelector.h`; persists rudder/sail angle state; maps nav rudder **1:1 to physical winch degrees, clamped ±ROTOR_AUTO_RANGE_DEG=20°** (full ±90° was too aggressive). NOTE: AutoController itself kept as Facundo's adaptation — Testautoboat's AutoController/DroneApp/LoRaComm/ManualController were NOT merged (they predate the single-ESC + unified-manual + heartbeat work). |
+| `oldNavigation.h` | `navigation/oldNavigation.h` | ✅ | Legacy fallback (same public names, empty `NavState{}`). NOT compiled unless the switch is flipped. **⚠️ Corrected 2026-09-30: when it IS flipped, the build currently fails** — `AutoController.cpp` references symbols from `navigation.h` (e.g. `NAV_DEFAULT_CORRIDOR_HALF_WIDTH_M`, `NAV_SAIL_RIGHT_DEG`, `nav_normalizeAngle`) that `oldNavigation.h` does not define (confirmed by compiling with `USE_OLD_NAVIGATION=1`). **The `USE_OLD_NAVIGATION` rollback switch is currently dead code, not a working fallback.** |
+| `AutoController` | `control/AutoController.h/.cpp` | ✅ | Includes `NavigationSelector.h`; persists rudder/sail angle state; maps nav rudder **1:1 to physical winch degrees, clamped to `ROTOR_AUTO_MIN_US`/`ROTOR_AUTO_MAX_US` = ±110°** (corrected 2026-09-30 — `ROTOR_AUTO_RANGE_DEG` no longer exists in code; ⚠️ this is a safety-relevant open disagreement with the 2026-06-04 ±20° bench result and the ±90° documented linkage travel — see §2 and §14, not resolved here). NOTE: AutoController itself kept as Facundo's adaptation — Testautoboat's AutoController/DroneApp/LoRaComm/ManualController were NOT merged (they predate the single-ESC + unified-manual + heartbeat work). |
 | `DroneApp` | `app/DroneApp.h/.cpp` | ✅ | controlTick dispatches to AutoController in Automatic+Failsafe when target active & wind valid |
+
+⚠️ **Unit-test coverage corrected 2026-09-30 (this heading previously said "no unit tests" — false):** `test/test_nav.cpp` and `test/test_gps_logic.cpp` substantially cover the navigation tacking/trim/watchdog logic, `AutoController`, and wind observation; tests for angle-wrap boundaries and the 16-waypoint boundary were added recently (see `test_nav.cpp`). "Untested on water" remains **true** and is unaffected by this correction. **The real, verified gap:** `DroneApp::controlTick` (the mode-dispatch orchestrator), `McpwmActuators` (the actuator write path), and `LoRaComm` (the only remote-control channel) compile into **no** test binary (see `test/CMakeLists.txt`) and are **0% covered**.
 
 ### Post_GPT (reference only — do not modify)
 
@@ -422,7 +434,7 @@ Sensors / `SensorBus` (Phase 4), Storage/Logging + Autonomous Propulsion + Winch
 | `main/config/Calibration.h` | Servo/ESC µs values (SAIL_PLUS/MINUS_US need bench calibration) |
 | `main/core/Types.h` | ControlMode enum, RcFrame struct, ActuatorCommand struct |
 | `main/drivers/AxpPower.h/.cpp` | AXP192 init: enables LDO2 (LoRa), LDO3 (GPS), DCDC1 (3.3V). Wire stays active. |
-| `main/drivers/BatteryAdc.h/.cpp` | GPIO36 ADC1_CH0, R5=562kΩ/R6=120kΩ divider, 11dB attenuation |
+| `main/drivers/BatteryAdc.h/.cpp` | GPIO36 ADC1_CH0, R5=562kΩ/R6=120kΩ divider, 11dB attenuation. ⚠️ Noted 2026-09-30: `BatteryAdc.h`'s own header comment still says "GPIO35" — stale (code reads GPIO36; see §8 Resolved Questions). Not fixed here (code is out of scope for this doc pass). |
 | `main/drivers/RcReceiver.h/.cpp` | Interrupt-driven RC PWM reading, 4 channels (CH2/3/4/5), ISR-safe with portMUX |
 | `main/drivers/McpwmActuators.h/.cpp` | MCPWM output for sail servo (GPIO2), rotor (GPIO25), ESC1 (GPIO15). Single ESC. |
 | `main/control/ModeManager.h/.cpp` | Decodes CH5 → ControlMode (Failsafe / Sail / Manual / Automatic) |
@@ -437,7 +449,7 @@ Sensors / `SensorBus` (Phase 4), Storage/Logging + Autonomous Propulsion + Winch
 | `transceiver/transceiver.ino` | Ground station sketch — shorthand CLI + raw JSON ↔ LoRa bridge |
 | `test/CMakeLists.txt` | Native Linux build for logic unit tests (no hardware needed) |
 | `test/stubs/Arduino.h` | Minimal Arduino type stub (uint8_t etc.) for host compilation |
-| `test/test_runner.cpp` | ⚠️ STALE — does not build (predates `main/src/` reorg + single-ESC + Sail/Manual rename). Needs rewrite. |
+| `test/test_runner.cpp` | Native unit tests for `ManualController`/`ModeManager` (the `control_logic` suite). Builds and passes. Corrected 2026-09-30 — previously wrongly marked STALE/does-not-build here. |
 | `docs/rapport_projet.tex` | French technical report (pdflatex, 29 pages) — project history, phases, problems/solutions |
 | `docs/rapport_projet.pdf` | Compiled PDF — regenerate with `pdflatex -interaction=nonstopmode rapport_projet.tex` (run twice) |
 
@@ -608,6 +620,7 @@ The Arduino IDE only compiles `.cpp` files that are in the same folder as the `.
 | 2026-06-10 | **Navigation upgraded to colleague's `Testautoboat` branch** (DeltaGod/PER_MEA_LYINCROYAP): new `navigation.h` (smarter initial tack via `nav_sideMovingTowardWaypoint`, passed-waypoint-plane arrival via `nav_hasPassedWaypoint`, corridor 20→100 m) + `NavigationConfig.h`/`NavigationSelector.h`/`oldNavigation.h` compile-time switch. Public entry points unchanged → drop-in; AutoController include retargeted to the selector. Only navigation ported — Facundo's AutoController/DroneApp/LoRaComm/ManualController kept. Compiles 28 %/7 %. |
 | 2026-06-10 | **Manual propeller → BIDIRECTIONAL** (±100 %). ESC neutral moved 1000→**1500 µs** (ESC_NEUTRAL_US, =ESC_STOP_US): CH3 ratchet maps CH3_FULL(1100)=+100 % fwd / CH3_CENTER(1545)=stop (±40 µs deadband) / CH3_ZERO(1990)=−100 % rev. Coherence updates: ActuatorCommand default esc1Us 1000→1500, McpwmActuators init 1500 + write clamp lower bound → ESC_REVERSE_MIN_US(1000), AUTO_ESC_* shifted to forward half (1600/1700/1850). ⚠️ Reverse needs the ESC in bidirectional mode (EPRG-3 card) — not yet confirmed done. Compiles 28 %/7 %. |
 | 2026-06-10 | Diagnosis (not a code bug): motor running **in pulses** at ~7 V is the ESC's **low-voltage cutoff** tripping under load (2S at 3.5 V/cell sags below LVC; worse if EPRG-3 cell-count is mis-set). Fix = full LiPo charge + program ESC cell count/LVC. Also: flashing the boat failed repeatedly — same brownout (chip stops mid-write, CP2104 re-enumerates); needs LiPo / manual BOOT-button entry. |
+| 2026-09-30 | **CLAUDE.md reconciled against code (doc-only pass, no firmware changes).** Nine verified drifts fixed: (1) architecture diagram `MissionPlan` max corrected 32→16 (§3). (2) **Safety-relevant:** auto-rudder range corrected from a `ROTOR_AUTO_RANGE_DEG=20°` constant that no longer exists in the code to the actual ±110° via `ROTOR_AUTO_MIN_US`/`ROTOR_AUTO_MAX_US` — flagged, not resolved, as an open disagreement with the 2026-06-04 ±20° bench-validated limit above and the ±90° "measured physical travel" documented in `Calibration.h` (§2, §6, §14). (3) Slew-rate claim narrowed to ESC-only; sail/rotor are not rate-limited (§2). (4) Corridor half-width corrected 100 m→30 m per the 2026-09-16 code change (§6). (5) False "unit tests STALE" warning removed from Phase 1 — the native suite builds and `ctest` passes 4/4 (§6, §9). (6) False "no unit tests" removed from the Phase 6 heading; real coverage gap recorded instead — `DroneApp::controlTick`, `McpwmActuators`, `LoRaComm` compile into no test binary, 0% covered (§6). (7) `oldNavigation.h` / `USE_OLD_NAVIGATION` rollback path recorded as dead — confirmed by compiling with the switch flipped, it fails on symbols `oldNavigation.h` doesn't define (§6). (8) `WindEstimator` removed from the §3 architecture listing — no such module exists; wind estimation lives in `AutoController` (§3). BatteryAdc.h's own header comment (GPIO35) noted as stale vs. the actual GPIO36 pin, which this document already stated correctly (§9). (9) Added a "Prerequisites — Autonomous Water Trial" subsection (§14). Also recorded, as accepted/deferred (not defects): unauthenticated LoRa uplink and IHM API, and the new read-only `/api/wind-forecast` endpoint (§6 Phase 0). |
 
 ---
 
@@ -646,6 +659,17 @@ Before water testing, verify each subsystem in order:
 6. **Propeller (Manual mode, propeller disconnected)** — With CH3 high (≈1990) verify `esc1`=1000 (0 %). Lower CH3 toward 1100: `esc1` rises (inverse). Confirm that above ~90 % stick (≈10 % power) it snaps from 0 to active, i.e. below 10 % → `esc1`=1000.
 7. **Sail-position inert check** — CH5 to middle (SAIL): verify all actuators hold neutral (sail=1520, rotor=1500, esc1=1000) regardless of sticks.
 8. **Failsafe** — Turn off transmitter while in MANUAL mode. Within 100 ms all channels read 0 and mode switches to `[FAILSAFE]`; actuators go to safe defaults.
+
+### Prerequisites — Autonomous Water Trial (Phase 6) — added 2026-09-30
+
+The procedure above covers manual RC (Phase 1). Phase 6 (autonomous sailing) is coded and unit-tested (§6) but **untested on water**. Before it is allowed to steer the boat unattended, the following require an actual physical measurement — none of them can be resolved by reading the code, and none should be assumed:
+
+1. **Winch real usable travel (highest priority).** Settle the disagreement recorded in §2 and §6: ±20° was bench-validated and flashed to the boat on 2026-06-04; `Calibration.h`'s own comment claims ±90° "measured physical travel" for the Safran linkage; the code as of 2026-09-30 permits ±110° via `ROTOR_AUTO_MIN_US`/`ROTOR_AUTO_MAX_US`. Measure the winch's actual safe range on the bench before any autonomous rudder command is allowed to reach the hardware.
+2. **Sail yaw moment vs. relative wind angle**, to calibrate the `nav_rudderCompensation = relWind/2` feed-forward (an unvalidated magic number in `navigation.h`/`oldNavigation.h`) — a ±25% mistune of this constant halves convergence.
+3. **GPS-track wind estimate accuracy** against a handheld anemometer — a 20° estimate error measurably drops convergence from 75.5% to 49.0%.
+4. **On-site tidal current.** The adversarial sweep shows this is the dominant hazard: convergence drops from 73.5% to 25.5% at only 0.25 m/s of current.
+
+These are open items pending measurement, not guesses — to confirm on the bench/water before a real autonomous trial, not to be assumed from the code or this document.
 
 ---
 

@@ -31,3 +31,8 @@ __pycache__/
 venv/
 node_modules/
 *.pyc
+
+# Secrets / local config (never commit API keys)
+.env
+.env.local
+*/.env

@@ -9,6 +9,7 @@
 // Sweeps then push each unknown and report the breaking frontier (no "pass").
 // ─────────────────────────────────────────────────────────────────────────────
 #include "metrics.hpp"
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <vector>
@@ -70,7 +71,11 @@ static void sweep(FILE* csv, const char* name, const std::vector<double>& vals,
     printf("\n── SWEEP: %s  (%d random missions per value)\n", name, N);
     printf("   %10s | %%converged | med pathRatio | %%stuck | med tacks\n", name);
     for (double v : vals) {
-        std::mt19937 rng(0xC0FFEE ^ (unsigned)(v * 1000) ^ std::hash<std::string>{}(name));
+        // Common random numbers: seed depends only on the sweep NAME, not on v, so every
+        // point in a sweep draws the SAME 200 missions and differs only by the injected
+        // parameter. Seeding on v (as before) confounded the parameter effect with
+        // mission-set variation — see docs/ADVERSARIAL_FINDINGS.md.
+        std::mt19937 rng(0xC0FFEE ^ std::hash<std::string>{}(name));
         int conv = 0, stuck = 0;
         std::vector<double> ratios; std::vector<int> tks;
         for (int i = 0; i < N; ++i) {
@@ -91,7 +96,7 @@ static void sweep(FILE* csv, const char* name, const std::vector<double>& vals,
         double pc = 100.0 * conv / N, ps = 100.0 * stuck / N;
         printf("   %10.3f |   %5.1f%%   |    %5.2f      | %5.1f%% |   %d\n",
                v, pc, med(ratios), ps, medi(tks));
-        fprintf(csv, "%s,%.4f,%.1f,%.3f,%.1f,%d\n", name, v, pc, med(ratios), ps, medi(tks));
+        if (csv) fprintf(csv, "%s,%.4f,%.1f,%.3f,%.1f,%d\n", name, v, pc, med(ratios), ps, medi(tks));
     }
 }
 
@@ -103,7 +108,13 @@ int main(int argc, char** argv) {
     if (baseFail) { printf("\n!! baseline control FAILED — harness suspect, aborting sweeps\n"); return 1; }
 
     FILE* csv = std::fopen("adversarial.csv", "w");
-    if (csv) fprintf(csv, "sweep,value,pct_converged,med_path_ratio,pct_stuck,med_tacks\n");
+    if (csv) {
+        fprintf(csv, "sweep,value,pct_converged,med_path_ratio,pct_stuck,med_tacks\n");
+    } else {
+        printf("\n!! could not open adversarial.csv for writing (%s) — "
+               "continuing, results printed to stdout only, no CSV will be produced\n",
+               std::strerror(errno));
+    }
 
     // 1. Wind-estimate error (deg). No wind sensor on the boat → this WILL be nonzero.
     sweep(csv, "windErrDeg", {0,5,10,15,20,30,45},
@@ -115,7 +126,9 @@ int main(int argc, char** argv) {
               p.currentSpeed = v; p.currentDir = std::uniform_real_distribution<>(0,360)(r); });
 
     // 3. Open-loop winch slew rate (deg/s). Lower = slower winch, no feedback.
-    sweep(csv, "winchDegPerS", {1e9,200,100,50,20,10},
+    // Extended 2026-09-30 to include 5,2,1,0.5: the previous range {1e9..10} stopped
+    // before the cliff (real winch rate is unmeasured — see docs/ADVERSARIAL_FINDINGS.md).
+    sweep(csv, "winchDegPerS", {1e9,200,100,50,20,10,5,2,1,0.5},
           [](BoatParams& p, double v, std::mt19937&){ p.winchRateDegPerS = v; });
 
     // 4. Sail-yaw compensation mismatch. 1.0 = twin's implicit assumption (perfect cancel).
@@ -126,8 +139,12 @@ int main(int argc, char** argv) {
     sweep(csv, "gpsPosM", {0,1,3,5,8},
           [](BoatParams& p, double v, std::mt19937&){ p.gpsPosNoiseM = v; p.gpsCourseNoiseDeg = v; });
 
-    if (csv) std::fclose(csv);
-    printf("\nCSV written: adversarial.csv\n");
+    if (csv) {
+        std::fclose(csv);
+        printf("\nCSV written: adversarial.csv\n");
+    } else {
+        printf("\nNo CSV written (see warning above) — sweep results are above, stdout only.\n");
+    }
     printf("Interpretation & required hardware measurements: docs/ADVERSARIAL_FINDINGS.md\n");
     return 0;
 }

@@ -1,7 +1,9 @@
 import json
+import math
 import os
 import signal
 import subprocess
+import sys
 import time
 import urllib.parse
 from pathlib import Path
@@ -14,6 +16,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 import config
+import windy
 from utils import db
 
 
@@ -22,7 +25,10 @@ from utils import db
 # ============================================================
 
 BASE_DIR = str(Path(__file__).resolve().parents[2])
-PYTHON_BIN = f"{BASE_DIR}/.venv/bin/python"
+# sys.executable : l'interpréteur qui exécute CE process. Un chemin .venv codé
+# en dur n'existe pas forcément (autre venv, pas de venv du tout, CI...) — on
+# ne retombe sur .venv/bin/python que si sys.executable est vide (cas rare).
+PYTHON_BIN = sys.executable or f"{BASE_DIR}/.venv/bin/python"
 MAX_LORA_PACKET_BYTES = 255
 
 router = APIRouter()
@@ -100,8 +106,10 @@ current_simulation = {"scenario": None, "speedup": 1.0}
 # ============================================================
 
 class Waypoint(BaseModel):
-    lat: float
-    lon: float
+    # Bornes géographiques réelles : au-delà, la valeur ne peut être qu'une
+    # erreur de saisie/import, envoyée telle quelle au safran sans ce garde-fou.
+    lat: float = Field(..., ge=-90, le=90)
+    lon: float = Field(..., ge=-180, le=180)
     radius_m: float = Field(default=5.0, gt=0)
 
 
@@ -133,6 +141,41 @@ class ResetTransceiverRequest(BaseModel):
 # ============================================================
 # Fonctions utilitaires
 # ============================================================
+
+def validate_coordinates(lat: float, lon: float) -> bool:
+    """
+    Validation de latitude/longitude en Python pur, indépendante de pydantic.
+
+    tests/conftest.py remplace pydantic par un stub sans validation dans cet
+    environnement : une contrainte Field seule (sur le modèle Waypoint) n'y
+    serait donc jamais vérifiée. Cette fonction est LA garde réelle et est
+    appelée explicitement partout où un waypoint entre dans le système
+    (send_route, parse_legacy_waypoints), en plus des contraintes Field.
+
+    Lève ValueError (message clair) si lat/lon est non numérique, NaN, hors
+    bornes, ou vaut exactement (0, 0) — sentinelle GPS "pas de fix" plutôt
+    qu'une position réelle, qu'on ne veut jamais envoyer au bateau.
+    """
+    try:
+        lat_f = float(lat)
+        lon_f = float(lon)
+    except (TypeError, ValueError):
+        raise ValueError(f"Coordonnées non numériques : lat={lat!r}, lon={lon!r}")
+
+    if math.isnan(lat_f) or math.isnan(lon_f):
+        raise ValueError(f"Coordonnées invalides (NaN) : lat={lat!r}, lon={lon!r}")
+
+    if not (-90.0 <= lat_f <= 90.0):
+        raise ValueError(f"Latitude hors limites [-90, 90] : {lat_f}")
+
+    if not (-180.0 <= lon_f <= 180.0):
+        raise ValueError(f"Longitude hors limites [-180, 180] : {lon_f}")
+
+    if lat_f == 0.0 and lon_f == 0.0:
+        raise ValueError("Coordonnées (0, 0) rejetées (sentinelle GPS invalide).")
+
+    return True
+
 
 def push_command_to_boat(message: Any) -> JSONResponse:
     """
@@ -232,7 +275,9 @@ def parse_legacy_waypoints(waypoints_string: str) -> List[Waypoint]:
 
     for item in raw_waypoints:
         if isinstance(item, dict):
-            waypoints.append(Waypoint(**item))
+            wp = Waypoint(**item)
+            validate_coordinates(wp.lat, wp.lon)
+            waypoints.append(wp)
 
         elif isinstance(item, list) or isinstance(item, tuple):
             if len(item) < 2:
@@ -241,6 +286,7 @@ def parse_legacy_waypoints(waypoints_string: str) -> List[Waypoint]:
             lat = float(item[0])
             lon = float(item[1])
             radius_m = float(item[2]) if len(item) >= 3 else 5.0
+            validate_coordinates(lat, lon)
 
             waypoints.append(Waypoint(
                 lat=lat,
@@ -633,6 +679,21 @@ def send_route(route: RouteRequest):
             status_code=400
         )
 
+    # Route rejetée EN ENTIER au premier point invalide (pas de drop ni de
+    # clamp silencieux d'un waypoint) — cf. P1.
+    for wp in route.waypoints:
+        try:
+            validate_coordinates(wp.lat, wp.lon)
+        except ValueError as e:
+            return JSONResponse(
+                {
+                    "status": "error",
+                    "message": "Waypoint invalide.",
+                    "error": str(e)
+                },
+                status_code=400
+            )
+
     message = build_waypoints_message(route.waypoints)
     return push_command_to_boat(message)
 
@@ -743,8 +804,19 @@ def send_wind_command(direction: int):
     """
     Envoie une consigne de direction du vent.
 
-    direction : angle en degrés.
+    direction : angle en degrés, 0-359 — même borne que le dialogue de
+    l'IHM desktop. Une valeur hors plage corromprait la sélection de
+    branche de navigation du firmware.
     """
+
+    if not (0 <= direction <= 359):
+        return JSONResponse(
+            {
+                "status": "error",
+                "message": f"Direction du vent hors limites [0, 359] : {direction}"
+            },
+            status_code=400
+        )
 
     message = {
         "wind-command": {
@@ -753,6 +825,61 @@ def send_wind_command(direction: int):
     }
 
     return push_command_to_boat(message)
+
+
+# Codes HTTP par type d'erreur windy.py (voir windy.WindyError et sous-classes).
+WINDY_ERROR_STATUS = {
+    "WindyValidationError": 400,   # lat/lon hors bornes ou non numériques
+    "WindyConfigError": 500,       # WINDY_API_KEY absente (config serveur)
+    "WindyNetworkError": 502,      # api.windy.com injoignable / timeout
+    "WindyParseError": 502,        # réponse Windy illisible
+}
+
+
+@router.get("/wind-forecast")
+def get_wind_forecast(lat: float, lon: float, model: str = "gfs", ts: Optional[int] = None):
+    """
+    Prévision de vent (Windy.com) au point (lat, lon) — LECTURE SEULE.
+
+    Donne à l'opérateur une direction de vent RÉELLE à recopier dans
+    /api/wind-command/{direction} au lieu d'en deviner une. N'envoie RIEN
+    au bateau : contrairement aux endpoints ci-dessus, cette route ne fait
+    aucun push_command_to_boat — l'envoi reste une action manuelle explicite
+    de l'opérateur via l'endpoint wind-command existant.
+
+    ts : timestamp cible en ms (epoch), optionnel — sinon l'entrée de
+    prévision la plus proche de maintenant est utilisée.
+    """
+
+    try:
+        validate_coordinates(lat, lon)
+    except ValueError as e:
+        return JSONResponse(
+            {"status": "error", "message": "Coordonnées invalides.", "error": str(e)},
+            status_code=400
+        )
+
+    try:
+        result = windy.get_wind_forecast(lat, lon, model=model, target_ts_ms=ts)
+    except Exception:
+        # Filet de sécurité : ne jamais laisser fuiter une exception brute
+        # (ni a fortiori la clé API) vers le client.
+        return JSONResponse(
+            {"status": "error", "message": "Erreur interne lors de la prévision de vent."},
+            status_code=500
+        )
+
+    if "error" in result:
+        status_code = WINDY_ERROR_STATUS.get(result.get("error_type"), 502)
+        return JSONResponse(
+            {"status": "error", "message": result["error"]},
+            status_code=status_code
+        )
+
+    return JSONResponse({
+        "status": "ok",
+        "forecast": result
+    })
 
 
 @router.get("/restart")

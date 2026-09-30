@@ -5,6 +5,7 @@ import json
 import math
 import re
 import statistics
+import sys
 import unittest
 from fractions import Fraction
 
@@ -50,6 +51,24 @@ def bearing(a, b):
     x = math.cos(la1) * math.sin(la2) - math.sin(la1) * math.cos(la2) * math.cos(lo2 - lo1)
     return (math.degrees(math.atan2(y, x)) + 360) % 360
 
+
+# The real on-site telemetry log lives in a sibling tree (AutoBoat_VN-1/Python)
+# that is not part of every checkout (this one included). Loading it is a
+# top-level side effect, so it must not run at import time — pytest's import
+# machinery would otherwise turn a missing file into a collection error for
+# the whole module. Skip cleanly instead of failing when the data is absent.
+_SKIP_REASON = (
+    None if FIELD_LOG.exists()
+    else f"field log not found: {FIELD_LOG} (sibling tree AutoBoat_VN-1 absent from this checkout)"
+)
+
+if _SKIP_REASON:
+    if "pytest" in sys.modules:
+        import pytest
+        pytest.skip(_SKIP_REASON, allow_module_level=True)
+    else:
+        print(f"SKIPPED: {_SKIP_REASON}")
+        sys.exit(0)
 
 ROWS = load()
 

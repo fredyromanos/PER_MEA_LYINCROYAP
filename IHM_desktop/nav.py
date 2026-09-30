@@ -34,6 +34,39 @@ SIM_MAX_TURN_PER_STEP = 12.0
 SIM_MAX_STEPS = 2500
 SIM_MAX_PATH_M = 4000.0
 
+# --- Validación de coordenadas (Python puro, sin dependencia externa) ---
+# Réplica de IHM/app/routes/messages.py::validate_coordinates — la IHM
+# desktop no comparte ese módulo, así que la regla está duplicada aquí
+# a propósito.
+NAV_LAT_MIN, NAV_LAT_MAX = -90.0, 90.0
+NAV_LON_MIN, NAV_LON_MAX = -180.0, 180.0
+
+
+def validate_coordinates(lat, lon):
+    """Valida una latitud/longitud (import GeoJSON, waypoint manual).
+    Lanza ValueError con mensaje claro si no es numérica, NaN, fuera de
+    rango, o exactamente (0, 0) — sentinela GPS "sin fix" más que una
+    posición real, que nunca se debe enviar al barco."""
+    try:
+        lat_f = float(lat)
+        lon_f = float(lon)
+    except (TypeError, ValueError):
+        raise ValueError(f"Coordenadas no numéricas: lat={lat!r}, lon={lon!r}")
+
+    if math.isnan(lat_f) or math.isnan(lon_f):
+        raise ValueError(f"Coordenadas inválidas (NaN): lat={lat!r}, lon={lon!r}")
+
+    if not (NAV_LAT_MIN <= lat_f <= NAV_LAT_MAX):
+        raise ValueError(f"Latitud fuera de rango [{NAV_LAT_MIN}, {NAV_LAT_MAX}]: {lat_f}")
+
+    if not (NAV_LON_MIN <= lon_f <= NAV_LON_MAX):
+        raise ValueError(f"Longitud fuera de rango [{NAV_LON_MIN}, {NAV_LON_MAX}]: {lon_f}")
+
+    if lat_f == 0.0 and lon_f == 0.0:
+        raise ValueError("Coordenadas (0, 0) rechazadas (sentinela GPS inválida).")
+
+    return True
+
 
 # --- Helpers angulares ---
 def relative_angle(ref_deg, target_deg):

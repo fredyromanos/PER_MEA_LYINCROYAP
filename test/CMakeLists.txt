@@ -3,6 +3,9 @@ project(drone_test CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Warnings on for every test target (and the main/src files they pull in).
+add_compile_options(-Wall -Wextra)
+
 # Host-native build of the firmware LOGIC layers — no ESP32, no Arduino core.
 # stubs/Arduino.h satisfies the few `#include <Arduino.h>` in the headers under test.
 include_directories(

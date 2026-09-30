@@ -134,8 +134,16 @@ static void testAutoController() {
         ActuatorCommand c = ac.compute(wind, fix(LAT, 0.0f, 0, 0, false, false), wp, 1000);
         CHECK("A2 no heading -> rudder centred", c.rotorUs == C::ROTOR_CENTER_US);
         CHECK("A2b no heading -> propeller cruise push", c.esc1Us == C::AUTO_ESC_CRUISE_US);
-        CHECK("A2c no heading -> sail on a tack (not centre)",
-              c.sailUs == C::SAIL_PLUS_US || c.sailUs == C::SAIL_MINUS_US);
+        // The acquire-heading fallback picks its tack from the documented initial
+        // default NAV_SAIL_RIGHT_DEG (navigation.h) while the heading is still
+        // unknown (sailAngle_ has not been set by real navigation yet).
+        // AutoController::sailToUs maps sailAngleDeg >= 0 -> SAIL_PLUS_US, so the
+        // one CORRECT tack here is SAIL_PLUS_US -- not "either tack", which let a
+        // flipped-default mutant (NAV_SAIL_RIGHT_DEG -> NAV_SAIL_LEFT_DEG) survive.
+        // (NAV_SAIL_RIGHT_DEG is a plain `static const double`, not constexpr, so
+        // this can't be a static_assert -- verified by inspection: 10.0 >= 0.)
+        CHECK("A2c no heading -> defaults to the documented initial tack (SAIL_PLUS_US)",
+              c.sailUs == C::SAIL_PLUS_US);
         CHECK("A2d mode acquire-heading", std::strcmp(ac.navMode(), "acquire-heading") == 0);
         c = ac.compute(wind, fix(LAT, 0.0f, 0, 0, false, false), wp, 1000 + C::HEADING_ACQUIRE_TIMEOUT_MS + 1);
         CHECK("A3 still no heading after the timeout -> neutral", isNeutral(c));
@@ -184,8 +192,24 @@ static void testPropulsion() {
     CHECK("P2a heading valid and 180 deg off -> minimum thrust",
           AutoController::computeAutoPropulsionUs(slowWrong, HeadingGate::State{true, 180.0f, HeadingGate::Gps},
                                                   200, 0, 10) == C::AUTO_ESC_MIN_US);
-    CHECK("P2b no heading -> heading-error branch skipped",
-          AutoController::computeAutoPropulsionUs(slowWrong, none, 200, 0, 10) != C::AUTO_ESC_MIN_US);
+    // P2b pins the ACTUAL propulsion gain (documented as ESC_STOP_US + speedError
+    // * 180 us per km/h below target) instead of only excluding one sentinel
+    // value. A gain blow-up mutant (e.g. *180.0f -> *5000.0f, a 28x change) still
+    // lands outside AUTO_ESC_MIN_US and would have survived the old assertion.
+    uint16_t p2b = AutoController::computeAutoPropulsionUs(slowWrong, none, 200, 0, 10);
+    float expectedP2b = C::ESC_STOP_US + (C::AUTO_PROP_TARGET_SPEED_KMPH - 1.0f) * 180.0f;  // 1500+1*180=1680
+    CHECK("P2b no heading, 1.0 km/h below target -> exact propulsion gain (1680 us)",
+          std::fabs((float)p2b - expectedP2b) < 1.0f);
+
+    // Second case: 0.1 km/h below target. The raw gain formula (1500+0.1*180=1518)
+    // falls BELOW the documented autonomous floor AUTO_ESC_MIN_US (1600), so the
+    // real code clamps it back up. A blown-up gain would instead push this case
+    // to the opposite end of the envelope (clamped at AUTO_ESC_MAX_US=1850), so
+    // this independently catches the same mutant from the other clamp direction.
+    GpsPosition nearTarget = fix(LAT, 1.9f, 180, 2, true, true);
+    uint16_t p2c = AutoController::computeAutoPropulsionUs(nearTarget, none, 200, 0, 10);
+    CHECK("P2c no heading, 0.1 km/h below target -> clamped to the AUTO_ESC_MIN_US floor",
+          p2c == C::AUTO_ESC_MIN_US);
     (void)northH;
 }
 

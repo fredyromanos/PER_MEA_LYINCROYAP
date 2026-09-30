@@ -2,7 +2,10 @@
 #include "Navigator.h"
 #include "../config/DebugConfig.h"
 
-static const char* stateName(MissionState s) {
+// [[maybe_unused]]: only called from DBG_MISN(...) call sites, which compile
+// out entirely when DEBUG_MISN=0 (DebugConfig.h) — not a real unused-function
+// bug, and must not warn under -Wall -Wextra.
+[[maybe_unused]] static const char* stateName(MissionState s) {
     switch (s) {
         case MissionState::Idle:      return "Idle";
         case MissionState::Running:   return "Running";
@@ -15,7 +18,9 @@ static const char* stateName(MissionState s) {
 void MissionManager::loadMission(const MissionPlan& plan) {
     plan_  = plan;
     idx_   = 0;
-    const char* modeStr = (plan.mode == MissionMode::Circuit) ? "Circuit" : "Linear";
+    // [[maybe_unused]]: only consumed by DBG_MISN(...) below, compiled out when
+    // DEBUG_MISN=0 (DebugConfig.h) — not a real unused-variable bug.
+    [[maybe_unused]] const char* modeStr = (plan.mode == MissionMode::Circuit) ? "Circuit" : "Linear";
     DBG_MISN("mission loaded: %u waypoints, mode=%s", (unsigned)plan.count, modeStr);
     for (uint8_t i = 0; i < plan.count; i++) {
         DBG_MISN("  wp[%u] lat=%.6f lon=%.6f r=%.0fm",
@@ -122,7 +127,9 @@ bool MissionManager::update(const GpsPosition& pos, Waypoint& outTarget) {
 }
 
 void MissionManager::advanceWaypoint() {
-    const uint8_t prev = idx_;
+    // [[maybe_unused]]: only consumed by DBG_MISN(...) below, compiled out when
+    // DEBUG_MISN=0 (DebugConfig.h) — not a real unused-variable bug.
+    [[maybe_unused]] const uint8_t prev = idx_;
     if (plan_.mode == MissionMode::Circuit) {
         idx_ = static_cast<uint8_t>((idx_ + 1) % plan_.count);
         DBG_MISN("waypoint advance (Circuit): wp[%u] → wp[%u]", (unsigned)prev, (unsigned)idx_);

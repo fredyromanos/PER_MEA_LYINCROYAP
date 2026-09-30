@@ -1,7 +1,7 @@
 # IHM simulators.
 #   simu_boat : legacy random-drift demo (unchanged)
 #   simu_gps  : digital twin with realistic GPS + REAL firmware HeadingGate/navigation/heartbeat
-SIM_DIR = ../../../../Simulation/simulation
+SIM_DIR = ../../simulation
 FW_SRC  = ../../main/src
 FW_NAV  = $(FW_SRC)/navigation
 CXX      = g++

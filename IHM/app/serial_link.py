@@ -37,8 +37,40 @@ def connect():
         return None
 
 
+# readline() rend ce qu'il a pu lire au bout de son timeout, même sans '\n' —
+# une trame (ex. heartbeat) à cheval sur deux lectures était donc traitée en
+# deux morceaux, chacun rejeté individuellement comme JSON invalide, et donc
+# perdue en entier. On bufférise le résidu entre appels et on n'émet qu'une
+# ligne complète (terminée par '\n').
+_residual = ""
+_RESIDUAL_MAX_BYTES = 4096   # borne : une ligne jamais terminée ne doit pas grossir indéfiniment
+
+
+def reset_read_buffer():
+    """Vide le résidu de ligne partielle. À appeler après une reconnexion
+    série : un fragment d'avant la coupure ne doit pas se recoller à des
+    données d'après (nouvelle session, plus rien à voir)."""
+    global _residual
+    _residual = ""
+
+
 def read(ser, collection):
-    line = ser.readline().decode("utf-8", errors="replace").strip()
+    global _residual
+
+    chunk = ser.readline().decode("utf-8", errors="replace")
+    if not chunk:
+        return   # rien reçu pendant le timeout
+
+    _residual += chunk
+    if not _residual.endswith("\n"):
+        if len(_residual) > _RESIDUAL_MAX_BYTES:
+            print(f"⚠️ Ligne série jamais terminée (> {_RESIDUAL_MAX_BYTES} o) — buffer réinitialisé.")
+            _residual = ""
+        return   # ligne incomplète : on la complètera au prochain appel
+
+    line = _residual.strip()
+    _residual = ""
+
     if line:
         payload = extract_json_payload(line)
 
@@ -108,6 +140,7 @@ def main():
             except Exception:
                 pass
             ser = None
+            reset_read_buffer()   # un fragment d'avant la coupure ne doit pas survivre à la reconnexion
             time.sleep(1.0)
 
 

@@ -47,12 +47,27 @@ static const double NAV_WATCHDOG_NO_PROGRESS_S = 300.0;
 static const double NAV_WATCHDOG_PROGRESS_M = 5.0;
 static const double NAV_DEFAULT_DT_S = 0.1;           // call period when the caller gives none
 
+// fmod-based wrap to [0, 360): O(1) for any finite input. The old while-loop
+// version was linear in the input magnitude — a bogus huge value (e.g. a
+// corrupted radio payload) could cost millions of iterations and stall the
+// control loop for seconds on the ESP32. fmod handles NaN/Inf without looping.
+inline double nav_normalizeAngle(double angleDeg) {
+  double wrappedDeg = std::fmod(angleDeg, 360.0);
+  if (wrappedDeg < 0.0)
+    wrappedDeg += 360.0;
+  return wrappedDeg;
+}
+
+// fmod-based wrap to (-180, 180]: O(1) for any finite input (the old code only
+// applied a single +-360 correction, so it was only correct while
+// |target-reference| < 540 — see navigation.h history). A single fmod already
+// reduces to (-360, 360); one corrective +-360 then lands it in (-180, 180].
 inline double nav_relativeAngle(double referenceDeg, double targetDeg) {
-  double relativeDeg = targetDeg - referenceDeg;
-  if (relativeDeg > 180)
-    relativeDeg -= 360;
-  else if (relativeDeg < -180)
-    relativeDeg += 360;
+  double relativeDeg = std::fmod(targetDeg - referenceDeg, 360.0);
+  if (relativeDeg <= -180.0)
+    relativeDeg += 360.0;
+  else if (relativeDeg > 180.0)
+    relativeDeg -= 360.0;
   return relativeDeg;
 }
 
@@ -61,8 +76,7 @@ inline bool nav_sameSign(double a, double b) {
 }
 
 inline double nav_oppositeAngle(double angleDeg) {
-  double oppositeDeg = angleDeg + 180;
-  return (oppositeDeg >= 360) ? oppositeDeg - 360 : oppositeDeg;
+  return nav_normalizeAngle(angleDeg + 180.0);
 }
 
 inline int nav_angleSide(double angleDeg) { return angleDeg < 0 ? -1 : 1; }
@@ -93,14 +107,6 @@ inline float nav_rudderCommand(float correctionDeg, double relativeWindDeg) {
   if (commandDeg < -NAV_RUDDER_COMMAND_LIMIT_DEG)
     return -NAV_RUDDER_COMMAND_LIMIT_DEG;
   return commandDeg;
-}
-
-inline double nav_normalizeAngle(double angleDeg) {
-  while (angleDeg >= 360)
-    angleDeg -= 360;
-  while (angleDeg < 0)
-    angleDeg += 360;
-  return angleDeg;
 }
 
 inline bool nav_isBetweenOnShortestTurn(double angleDeg, double startDeg,

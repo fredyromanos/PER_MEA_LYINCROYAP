@@ -9,7 +9,6 @@
 # Pas de "set -e" : on gère les erreurs explicitement (plus robuste ici).
 
 IHM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VENV_PYTHON="$IHM_DIR/.venv/bin/python"
 COMPOSE_FILE="$IHM_DIR/docker-compose.yml"
 SERIAL_LOG="/tmp/autoboat_serial.log"
 SERVER_LOG="/tmp/autoboat_webserver.log"
@@ -34,11 +33,19 @@ else
     info "Pour forcer un port : $0 /dev/ttyUSBx"
 fi
 
-# ── Vérification du venv ──────────────────────────────────────────────────────
-if [[ ! -x "$VENV_PYTHON" ]]; then
-    err "Environnement virtuel introuvable : $VENV_PYTHON"
-    err "Créer avec : cd $IHM_DIR && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
-    exit 1
+# ── Interpréteur Python ────────────────────────────────────────────────────────
+# .venv si présent (déploiement normal), sinon repli sur python3/python du PATH
+# (ex. cet environnement de dev n'a pas de venv) — ne jamais coder en dur un
+# chemin .venv qui peut ne pas exister.
+if [[ -x "$IHM_DIR/.venv/bin/python" ]]; then
+    VENV_PYTHON="$IHM_DIR/.venv/bin/python"
+else
+    VENV_PYTHON="$(command -v python3 || command -v python)"
+    if [[ -z "$VENV_PYTHON" ]]; then
+        err "Aucun interpréteur Python trouvé (ni .venv, ni python3/python sur le PATH)."
+        exit 1
+    fi
+    info "Environnement virtuel introuvable — repli sur l'interpréteur système : $VENV_PYTHON"
 fi
 
 # ── 0. Nettoyage complet (réutilise stop_ihm.sh — source unique de vérité) ────

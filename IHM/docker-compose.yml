@@ -4,7 +4,11 @@ services:
     container_name: autoboat-mongo
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      # Lié à loopback uniquement : sans auth, "27017:27017" exposait Mongo
+      # (télémétrie + commandes bateau) à tout le LAN. Décision de déploiement
+      # volontairement pas prise ici : pas d'identifiants ajoutés, juste
+      # suppression de l'exposition par défaut.
+      - "127.0.0.1:27017:27017"
     volumes:
       - autoboat-mongo-data:/data/db
 

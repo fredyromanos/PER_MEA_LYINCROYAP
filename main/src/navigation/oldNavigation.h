@@ -21,6 +21,21 @@ inline bool nav_sameSign(double angle1, double angle2) {
     return (angle1 >= 0 && angle2 >= 0) || (angle1 < 0 && angle2 < 0);
 }
 
+// fmod-based wrap to [0, 360) — copied from navigation.h so AutoController.cpp
+// (which calls this directly, not only through the nav_handle* entry points)
+// links against either navigation header. Value/behaviour identical to navigation.h.
+inline double nav_normalizeAngle(double angleDeg) {
+    double wrappedDeg = std::fmod(angleDeg, 360.0);
+    if (wrappedDeg < 0.0)
+        wrappedDeg += 360.0;
+    return wrappedDeg;
+}
+
+// Call-site parity with navigation.h: AutoController.cpp references these two
+// constants directly. Values must match navigation.h exactly.
+static const double NAV_DEFAULT_CORRIDOR_HALF_WIDTH_M = 30.0;
+static const double NAV_SAIL_RIGHT_DEG = 10.0;
+
 static const float NAV_RUDDER_CORRECTION_LIMIT_DEG = 20.0f;
 static const float NAV_RUDDER_COMMAND_LIMIT_DEG = 110.0f;
 
@@ -183,7 +198,8 @@ inline NavResult nav_handleNavigationWithState(
     double /*boatLng*/ = 0.0,
     double /*waypointLat*/ = 0.0,
     double /*waypointLng*/ = 0.0,
-    double /*corridorHalfWidthM*/ = 0.0
+    double /*corridorHalfWidthM*/ = 0.0,
+    double /*dtS*/ = 0.0   // call-site parity with navigation.h; legacy algorithm has no watchdog/trim
 ) {
     return nav_handleNavigation(
         boatHeading,

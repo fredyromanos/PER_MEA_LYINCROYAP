@@ -18,6 +18,17 @@ from paths import ARCHIVE, DEV, MEETINGS, PER, TRIALS, VN1
 GPS_WORDS = re.compile(r"gps|satellit|antenne|nmea|positionnement", re.I)
 
 
+def skip_if_missing(*paths):
+    """Skip (not fail) a test whose input data is genuinely absent from this
+    checkout, instead of letting FileNotFoundError/zipfile errors blow up the
+    test with an unreadable traceback. Real defects must still fail loudly."""
+    missing = [p for p in paths if not p.exists()]
+    if missing:
+        raise unittest.SkipTest(
+            "input data not found in this checkout (try setting S9P_ROOT): "
+            + ", ".join(str(p) for p in missing))
+
+
 def docx_text(path):
     with zipfile.ZipFile(path) as z:
         xml = z.read("word/document.xml").decode("utf-8")
@@ -33,34 +44,44 @@ def xlsx_text(path):
 class Documents(unittest.TestCase):
     def test_T10_broken_gps_receiver_2026(self):
         """T10 meeting minutes 25/03-29/04/2026 record a broken GPS receiver, replacement arrived 29/04"""
-        for name in ("CR_25-03-2026.docx", "CR_01-04-2026.docx", "08-04-2026.docx"):
+        names = ("CR_25-03-2026.docx", "CR_01-04-2026.docx", "08-04-2026.docx", "CR_29-04-2026.docx")
+        skip_if_missing(*(MEETINGS / name for name in names))
+        for name in names[:-1]:
             self.assertIn("Récepteur GPS cassé", docx_text(MEETINGS / name), name)
         self.assertRegex(docx_text(MEETINGS / "CR_29-04-2026.docx"), r"Récepteur GPS cassé\s*:\s*commande arrivée")
 
     def test_T10b_spec_gps_reliability_unknown(self):
         """T10b specification: GPS test status 'Test en cours / Inconnu' and antenna placement warning"""
-        t = xlsx_text(DEV.parent / "05_Documentation_et_livrables" / "Cahier des charges" / "Cahier des charges.xlsx")
+        cdc = DEV.parent / "05_Documentation_et_livrables" / "Cahier des charges" / "Cahier des charges.xlsx"
+        skip_if_missing(cdc)
+        t = xlsx_text(cdc)
         self.assertIn("Système GPS pour se repérer", t)
         self.assertIn("Inconnu", t)
         self.assertIn("l'antenne GPS doit être positionnée sur le boitier", t)
 
     def test_T11_trial_retex_never_mention_gps(self):
         """T11 RETEX of the 2026 trials (27/05 car park, 10/06 lake) contain no GPS-related word"""
-        for sub in ("Parking", "Lac de Saint-Renan"):
+        subs = ("Parking", "Lac de Saint-Renan")
+        skip_if_missing(*(TRIALS / sub / "RETEX.docx" for sub in subs))
+        for sub in subs:
             text = docx_text(TRIALS / sub / "RETEX.docx")
             self.assertTrue(text.strip(), sub)
             self.assertIsNone(GPS_WORDS.search(text), f"{sub} RETEX mentions GPS")
 
     def test_T12_gps_doc_claims_contradicted(self):
         """T12 gps_explication.tex presents isValid() as 'fix active' and a FIX LOST branch (T05 proves both wrong)"""
-        tex = (PER / "docs" / "gps_explication.tex").read_text(encoding="utf-8")
+        doc = PER / "docs" / "gps_explication.tex"
+        skip_if_missing(doc)
+        tex = doc.read_text(encoding="utf-8")
         self.assertIn("gps_.location.isValid(); // (4) fix GPS actif ?", tex)
         self.assertIn('DBG("GPS", "FIX LOST")', tex)
         self.assertRegex(tex, r"uniquement si une phrase NMEA valide avec fix actif")
 
     def test_T13_adversarial_same_conclusion(self):
         """T13 ADVERSARIAL_FINDINGS.md independently names GPS course as heading the most likely on-water failure"""
-        md = (DEV / "docs" / "ADVERSARIAL_FINDINGS.md").read_text(encoding="utf-8")
+        doc = DEV / "docs" / "ADVERSARIAL_FINDINGS.md"
+        skip_if_missing(doc)
+        md = doc.read_text(encoding="utf-8")
         self.assertIn("GPS course-over-ground as heading", md)
         self.assertIn("single most likely on-water failure", md)
 
@@ -83,7 +104,9 @@ class WaypointOrderEndToEnd(unittest.TestCase):
     @unittest.skipUnless(shutil.which("node"), "node not installed")
     def test_R2a_js_geojson_to_waypoints(self):
         """R2a IHM script.js addRouteToMap(): GeoJSON [lon,lat] -> {lat, lon} (real function, run in node)"""
-        js = (PER / "IHM" / "app" / "static" / "script.js").read_text(encoding="utf-8")
+        script = PER / "IHM" / "app" / "static" / "script.js"
+        skip_if_missing(script)
+        js = script.read_text(encoding="utf-8")
         fn = extract_js_function(js, "addRouteToMap")
         geo = {"features": [{"geometry": {"coordinates": self.GEOJSON_COORDS}}]}
         prog = fn + f"\nconsole.log(JSON.stringify(addRouteToMap({json.dumps(geo)})));"
@@ -93,7 +116,9 @@ class WaypointOrderEndToEnd(unittest.TestCase):
 
     def test_R2b_python_route_to_lora_string(self):
         """R2b IHM messages.py build_waypoints_message(): points string is 'lat,lon,...' (real function via ast)"""
-        src = (PER / "IHM" / "app" / "routes" / "messages.py").read_text(encoding="utf-8")
+        routes = PER / "IHM" / "app" / "routes" / "messages.py"
+        skip_if_missing(routes)
+        src = routes.read_text(encoding="utf-8")
         node = next(n for n in ast.parse(src).body
                     if isinstance(n, ast.FunctionDef) and n.name == "build_waypoints_message")
 
@@ -109,7 +134,9 @@ class WaypointOrderEndToEnd(unittest.TestCase):
     @unittest.skipUnless(shutil.which("g++"), "g++ not installed")
     def test_R2c_firmware_parser(self):
         """R2c firmware LoRaComm.cpp waypoint loop (extracted verbatim, compiled) reads lat then lon"""
-        src = (PER / "main" / "src" / "comm" / "LoRaComm.cpp").read_text(encoding="utf-8")
+        lora_comm = PER / "main" / "src" / "comm" / "LoRaComm.cpp"
+        skip_if_missing(lora_comm)
+        src = lora_comm.read_text(encoding="utf-8")
         loop = src[src.index("    for (int i = 0; i < count && plan.count"):src.index("    if (plan.count > 0)")]
         cpp = textwrap.dedent("""
             #include <cstdio>
@@ -137,6 +164,7 @@ class WaypointOrderEndToEnd(unittest.TestCase):
 class RepoConsistency(unittest.TestCase):
     def test_R4_setup_gps_loop_terminates(self):
         """R4 ruled out: legacy setupGPS() while-loop decrements failCount (repo and archive boat.ino)"""
+        skip_if_missing(ARCHIVE, VN1 / "boat" / "boat.ino")
         with zipfile.ZipFile(ARCHIVE) as z:
             archived = z.read("Arduino/boat/boat.ino").decode("utf-8", "replace")
         for label, src in (("repo", (VN1 / "boat" / "boat.ino").read_text(encoding="utf-8", errors="replace")),
@@ -148,9 +176,11 @@ class RepoConsistency(unittest.TestCase):
 
     def test_R5_archive_gps_code_identical(self):
         """R5 handover Arduino.zip GPS sources are identical to the analysed repo copies (ignoring CRLF)"""
+        rels = ("GPS/Gps.cpp", "GPS/Gps.hpp", "heading/Gps.cpp", "heading/Gps.hpp",
+                "boat/Gps.cpp", "boat/Gps.hpp")
+        skip_if_missing(ARCHIVE, *(VN1 / rel for rel in rels))
         with zipfile.ZipFile(ARCHIVE) as z:
-            for rel in ("GPS/Gps.cpp", "GPS/Gps.hpp", "heading/Gps.cpp", "heading/Gps.hpp",
-                        "boat/Gps.cpp", "boat/Gps.hpp"):
+            for rel in rels:
                 a = z.read(f"Arduino/{rel}").replace(b"\r\n", b"\n")
                 b = (VN1 / rel).read_bytes().replace(b"\r\n", b"\n")
                 self.assertEqual(a, b, rel)
