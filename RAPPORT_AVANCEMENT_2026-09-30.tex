@@ -4,135 +4,439 @@
 \usepackage[T1]{fontenc}
 \usepackage{textcomp}
 \usepackage{lmodern}
-\usepackage[protrusion=true,expansion=true]{microtype}
 \usepackage[french]{babel}
-\usepackage{geometry}
-\geometry{margin=2.4cm}
-\usepackage{tabularx}
-\usepackage{booktabs}
-\usepackage{fancyvrb}
+\usepackage[margin=2.2cm,top=2.4cm,bottom=2.2cm]{geometry}
+\usepackage{microtype}
 \usepackage{xcolor}
 \usepackage{enumitem}
 \usepackage{titlesec}
-\usepackage[hidelinks]{hyperref}
 \usepackage{fancyhdr}
-\usepackage{colortbl}
+\usepackage{tikz}
+\usepackage{pgfplots}
 \usepackage[most]{tcolorbox}
+\usepackage[hidelinks]{hyperref}
+\pgfplotsset{compat=1.16}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit,calc,backgrounds}
 
-\definecolor{codebg}{gray}{0.95}
+% ---------- palette ----------
 \definecolor{accent}{HTML}{0B5D8A}
 \definecolor{accentlight}{HTML}{E8F1F7}
-\definecolor{sevcrit}{HTML}{B3261E}
-\definecolor{sevmaj}{HTML}{B45309}
-\definecolor{sevstat}{HTML}{5B47A8}
-\definecolor{rowgray}{HTML}{F4F6F8}
-\hypersetup{colorlinks=true,linkcolor=accent,urlcolor=accent}
-\newtcolorbox{keybox}[1][]{enhanced,colback=accentlight,colframe=accent,boxrule=0pt,leftrule=3pt,
-  arc=2pt,left=8pt,right=8pt,top=6pt,bottom=6pt,breakable,#1}
-\newtcolorbox{warnbox}[1][]{enhanced,colback=sevcrit!6,colframe=sevcrit,boxrule=0pt,leftrule=3pt,
-  arc=2pt,left=8pt,right=8pt,top=6pt,bottom=6pt,breakable,#1}
-\renewcommand{\arraystretch}{1.25}
-\rowcolors{2}{rowgray}{white}
+\definecolor{good}{HTML}{2E7D32}
+\definecolor{goodlight}{HTML}{E6F4E7}
+\definecolor{bad}{HTML}{B3261E}
+\definecolor{badlight}{HTML}{FBE9E7}
+\definecolor{warn}{HTML}{B45309}
+\definecolor{warnlight}{HTML}{FFF3E0}
+\definecolor{ink}{HTML}{1F2933}
+\definecolor{mute}{HTML}{6B7280}
 
-% Underscores appear unescaped in dozens of C/Python identifiers throughout this
-% report; making "_" a plain printable character avoids escaping every one by hand.
-% "/" is made active so that long file paths (main/src/navigation/navigation.h, etc.)
-% can break at a slash instead of overflowing table cells and margins. Neither change
-% affects math mode (no "_" or "/" is used there in this document).
-\catcode`\_=\active
-\def_{\string_\allowbreak}
-\catcode`\/=\active
-\def/{\string/\allowbreak}
+% ---------- headings ----------
+\titleformat{\section}{\sffamily\Large\bfseries\color{accent}}{\thesection}{0.7em}{}[{\color{accent}\titlerule[0.8pt]}]
+\titlespacing*{\section}{0pt}{2.6ex plus 0.5ex}{1.4ex}
+\titleformat{\subsection}{\sffamily\large\bfseries\color{ink}}{}{0em}{}
+\titlespacing*{\subsection}{0pt}{2ex}{0.8ex}
 
-\newcommand{\code}[1]{\texttt{\color{accent!70!black}#1}}
-\newcommand{\rref}[2]{\hyperref[#1]{§#2}}
+\pagestyle{fancy}\fancyhf{}
+\fancyhead[L]{\sffamily\footnotesize\bfseries\color{accent} PER MEA S9P-2026}
+\fancyhead[R]{\sffamily\footnotesize\color{mute} Rapport d'avancement --- 30 septembre 2026}
+\fancyfoot[C]{\sffamily\footnotesize\color{mute}\thepage}
+\renewcommand{\headrule}{\color{accent}\hrule width\headwidth height0.6pt}
+\setlength{\parskip}{0.6em}\setlength{\parindent}{0pt}
+\renewcommand{\arraystretch}{1.2}
 
-% Modest extra justification leeway (no content change) to avoid the last few
-% marginal overfull lines caused by long technical identifiers.
-\tolerance=1200
-\emergencystretch=2em
+% ---------- boxes ----------
+\tcbset{boxstyle/.style={enhanced,arc=2.5pt,boxrule=0pt,leftrule=3.5pt,left=9pt,right=9pt,top=6pt,bottom=6pt,breakable}}
+\newtcolorbox{info}[1][]{boxstyle,colback=accentlight,colframe=accent,#1}
+\newtcolorbox{alert}[1][]{boxstyle,colback=badlight,colframe=bad,#1}
+\newtcolorbox{ok}[1][]{boxstyle,colback=goodlight,colframe=good,#1}
+\newtcolorbox{caution}[1][]{boxstyle,colback=warnlight,colframe=warn,#1}
 
-\titleformat{\section}{\Large\bfseries\color{accent}}{\thesection}{0.7em}{}[{\color{accent}\titlerule[0.8pt]}]
-\titleformat{\subsection}{\large\bfseries\color{accent!85!black}}{\thesubsection}{0.6em}{}
-\titleformat{name=\subsection,numberless}{\large\bfseries\color{accent!85!black}}{}{0em}{}
-\titlespacing*{\section}{0pt}{3ex plus 0.6ex}{1.4ex}
-\titlespacing*{\subsection}{0pt}{2.4ex plus 0.4ex}{1ex}
+% KPI tile: \kpi{value}{label}{color}
+\newcommand{\kpi}[3]{%
+\begin{tcolorbox}[enhanced,colback=#3!8,colframe=#3,boxrule=0.6pt,arc=3pt,halign=center,
+  left=2pt,right=2pt,top=5pt,bottom=5pt]
+{\sffamily\bfseries\LARGE\color{#3}#1}\\[-1pt]{\sffamily\footnotesize\color{ink}#2}
+\end{tcolorbox}}
 
-\pagestyle{fancy}
-\fancyhf{}
-\fancyhead[L]{\footnotesize\color{accent}\bfseries PER MEA S9P-2026}
-\fancyhead[R]{\footnotesize Rapport d'avancement — 30 septembre 2026}
-\fancyfoot[C]{\footnotesize\thepage}
-\renewcommand{\headrulewidth}{0.6pt}
-\renewcommand{\headrule}{\color{accent}\hrule width\headwidth height\headrulewidth}
+% Before / after pair: \fix{title}{before}{after}
+\newcommand{\fix}[3]{%
+\par\medskip
+{\sffamily\bfseries\color{ink}#1}\par\vspace{2pt}
+\noindent\begin{minipage}[t]{0.455\linewidth}
+\begin{tcolorbox}[enhanced,colback=badlight,colframe=bad,boxrule=0pt,leftrule=3pt,arc=2pt,
+ left=7pt,right=6pt,top=4pt,bottom=4pt,height=2.6cm,valign=center]
+{\sffamily\scriptsize\bfseries\color{bad} AVANT}\\[1pt]{\small #2}
+\end{tcolorbox}\end{minipage}%
+\hfill\raisebox{1.1cm}{\tikz\draw[-{Stealth[length=2.6mm]},line width=1.3pt,color=mute](0,0)--(0.45,0);}\hfill
+\begin{minipage}[t]{0.455\linewidth}
+\begin{tcolorbox}[enhanced,colback=goodlight,colframe=good,boxrule=0pt,leftrule=3pt,arc=2pt,
+ left=7pt,right=6pt,top=4pt,bottom=4pt,height=2.6cm,valign=center]
+{\sffamily\scriptsize\bfseries\color{good} APRÈS}\\[1pt]{\small #3}
+\end{tcolorbox}\end{minipage}\par\medskip}
 
-\setlength{\parskip}{0.7em}
-\setlength{\parindent}{0pt}
+% Process block for TikZ diagrams
+\tikzset{
+  blk/.style={rounded corners=3pt,draw=accent,fill=accentlight,thick,align=center,
+    minimum height=1.05cm,text width=2.35cm,font=\sffamily\footnotesize,inner sep=3pt},
+  blkbad/.style={blk,draw=bad,fill=badlight},
+  blkgood/.style={blk,draw=good,fill=goodlight},
+  arr/.style={-{Stealth[length=2.4mm]},thick,color=mute},
+  tag/.style={circle,fill=bad,text=white,font=\sffamily\bfseries\scriptsize,inner sep=1.6pt},
+  tagok/.style={circle,fill=good,text=white,font=\sffamily\bfseries\scriptsize,inner sep=1.6pt},
+}
+
+\pgfplotsset{
+  barstyle/.style={ybar,bar width=14pt,width=\linewidth,height=5.2cm,ymin=0,
+    axis lines*=left,ymajorgrids,grid style={color=black!10},tick style={draw=none},
+    every axis label/.style={font=\sffamily\footnotesize},
+    tick label style={font=\sffamily\footnotesize},
+    nodes near coords,every node near coord/.append style={font=\sffamily\scriptsize},
+    enlarge x limits=0.25,
+  }
+}
 
 \begin{document}
 
+% ================= TITLE =================
 \begin{tcolorbox}[enhanced,colback=accent,colframe=accent,coltext=white,arc=3pt,
-  left=14pt,right=14pt,top=14pt,bottom=14pt,boxrule=0pt]
-{\footnotesize\bfseries\scshape\color{white!85!accent} Rapport d'avancement \textperiodcentered{} 30 septembre 2026}\\[0.5em]
-{\Huge\bfseries\color{white} Audit et corrections}\\[0.2em]
-{\Large\color{white} PER MEA S9P-2026, drone voilier autonome}
+  left=16pt,right=16pt,top=14pt,bottom=14pt,boxrule=0pt]
+{\sffamily\footnotesize\bfseries\color{white!80!accent} RAPPORT D'AVANCEMENT \quad$\cdot$\quad 30 SEPTEMBRE 2026}\\[0.5em]
+{\sffamily\Huge\bfseries\color{white} Fiabiliser le drone voilier}\\[0.15em]
+{\sffamily\large\color{white} Audit, corrections et simulateur --- PER MEA S9P-2026}\\[0.6em]
+{\sffamily\small\color{white} Haitam Kilani \quad$\cdot$\quad partie embarquée}
 \end{tcolorbox}
 
+\vspace{0.3em}
+\begin{info}
+\textbf{En bref.} Au départ, tous les tests passaient, mais ils ne vérifiaient pas grand-chose. J'ai cherché ce qu'ils ne
+contrôlaient pas, reproduit chaque défaut avant de le corriger, et étendu le simulateur pour qu'il représente enfin les
+perturbations réelles. Un point reste bloquant avant tout essai autonome : la course réelle du safran, qui ne se règle
+pas dans le code mais se mesure au banc. Rien de ce travail n'est encore committé.
+\end{info}
+
+% ================= 1 =================
+\section{Ma méthode}
+
+Je n'ai retenu un défaut que lorsque j'ai pu le montrer en l'exécutant. Chaque constat suit le même parcours.
+
+\vspace{0.3em}
+\begin{center}
+\begin{tikzpicture}[node distance=7mm]
+\node[blk] (a) {\textbf{1. Relire}\\le code et les tests};
+\node[blk,right=of a] (b) {\textbf{2. Reproduire}\\le défaut par un test};
+\node[blk,right=of b] (c) {\textbf{3. Corriger}\\sans toucher au matériel};
+\node[blkgood,right=of c] (d) {\textbf{4. Vérifier}\\tests et re-mutation};
+\draw[arr](a)--(b);\draw[arr](b)--(c);\draw[arr](c)--(d);
+\end{tikzpicture}
+\end{center}
+
+Le travail couvre cinq zones du projet, résumées ci-dessous. Le détail suit dans les sections suivantes.
+
+\vspace{0.3em}
+\begin{center}
+\begin{tikzpicture}
+\node[blk,text width=3.05cm,minimum height=2.3cm,anchor=north west] (f) at (0,0)
+ {\textbf{Firmware}\\[2pt]\scriptsize navigation,\\radio LoRa,\\gestion des modes};
+\node[blk,text width=3.05cm,minimum height=2.3cm,anchor=north west] (s) at (3.3,0)
+ {\textbf{Simulateur}\\[2pt]\scriptsize courant, dérive,\\vent réel,\\scénarios isolés};
+\node[blk,text width=3.05cm,minimum height=2.3cm,anchor=north west] (h) at (6.6,0)
+ {\textbf{Harnais adverse}\\[2pt]\scriptsize chiffres refaits,\\statistiques\\corrigées};
+\node[blk,text width=3.05cm,minimum height=2.3cm,anchor=north west] (i) at (9.9,0)
+ {\textbf{Interface (IHM)}\\[2pt]\scriptsize trames, ordre des\\commandes, base\\de données};
+\node[blk,text width=4.7cm,minimum height=1.05cm,anchor=north west] (t) at (0,-2.55)
+ {\textbf{Tests} : suites renforcées et remises en marche};
+\node[blk,text width=7.9cm,minimum height=1.05cm,anchor=north west] (d) at (5.05,-2.55)
+ {\textbf{Documentation} : écarts entre la description du projet et le code corrigés};
+\end{tikzpicture}
+\end{center}
+
+% ================= 2 =================
+\section{Point de départ : la chaîne GPS}
+
+Le 23 septembre, j'avais montré que les problèmes de terrain venaient du GPS et qu'ils existaient dans
+\emph{toutes} les versions du firmware. Le bateau n'a pas de compas : à basse vitesse, son seul cap est la route mesurée
+par le GPS, et le programme traitait comme valides des données périmées.
+
+\begin{center}
+\begin{tikzpicture}[node distance=6mm]
+\node[blk,text width=2.2cm] (g) {\textbf{Récepteur GPS}};
+\node[blk,text width=2.2cm,right=of g] (p) {\textbf{Pilote}\\validité du fix};
+\node[blk,text width=2.2cm,right=of p] (c) {\textbf{Calcul du cap}\\et de la vitesse};
+\node[blk,text width=2.2cm,right=of c] (n) {\textbf{Navigation}\\et trim du safran};
+\node[blk,text width=1.8cm,right=of n] (a) {\textbf{Safran,\\voile}};
+\draw[arr](g)--(p);\draw[arr](p)--(c);\draw[arr](c)--(n);\draw[arr](n)--(a);
+\node[tag,above=1mm of g.north east]{1};
+\node[tag,above=1mm of p.north east]{2};
+\node[tag,above=1mm of c.north east]{3};
+\node[tag,above=1mm of n.north east]{4};
+\node[text width=2.2cm,align=center,font=\sffamily\scriptsize\color{bad},below=4mm of g]{Réglage du récepteur inadapté};
+\node[text width=2.2cm,align=center,font=\sffamily\scriptsize\color{bad},below=4mm of p]{Perte de fix jamais détectée};
+\node[text width=2.4cm,align=center,font=\sffamily\scriptsize\color{bad},below=4mm of c]{Cap à 0° au démarrage, valeurs figées};
+\node[text width=2.4cm,align=center,font=\sffamily\scriptsize\color{bad},below=4mm of n]{Pilote sur un faux cap};
+\end{tikzpicture}
+\end{center}
+
+\begin{ok}
+\textbf{Ce que j'ai mis en place.} Un fix n'est valide que s'il a moins de 2 secondes, au moins 5 satellites et une
+précision suffisante. Le cap n'est accepté qu'après confirmation sur 3 mesures, avec une marge de vitesse pour éviter
+qu'il clignote. Si le fix tombe, le bateau se met en neutre et repart seul ; si le cap est inconnu, il avance en ligne
+droite à l'hélice. J'ai aussi ajouté un réglage automatique du décalage du safran, plus un chien de garde qui détecte
+une manœuvre bloquée.
+\end{ok}
+
+\subsection{Effet du réglage automatique du safran}
+
+J'ai simulé 854 cas d'un décalage mécanique du safran, de $-30^\circ$ à $+30^\circ$. Au-delà de $20^\circ$, le bateau
+tournait en rond ; c'est maintenant réglé dans 99,4~\% des cas.
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[barstyle,ylabel={Missions réussies (\%)},symbolic x coords={{Décalage $\leq 4^\circ$},{5 à $19^\circ$},{$\geq 20^\circ$}},
+ xtick=data,ymax=118,legend style={font=\sffamily\scriptsize,at={(0.5,1.02)},anchor=south,legend columns=2,draw=none},
+ nodes near coords={\pgfmathprintnumber[fixed,precision=1]{\pgfplotspointmeta}},height=5.4cm,width=0.85\linewidth,bar width=18pt]
+\addplot[fill=bad!70,draw=none] coordinates {({Décalage $\leq 4^\circ$},100) ({5 à $19^\circ$},87.4) ({$\geq 20^\circ$},9.7)};
+\addplot[fill=good!80,draw=none] coordinates {({Décalage $\leq 4^\circ$},100) ({5 à $19^\circ$},100) ({$\geq 20^\circ$},99.4)};
+\legend{Avant,Après}
+\end{axis}
+\end{tikzpicture}
+\end{center}
+
+Un couloir de navigation ramené de 100 à 30~m réduit l'écart maximal à la route de 103 à 57~m, pour 4~\% de durée en plus.
+
+% ================= 3 =================
+\section{Corrections dans le firmware}
+
+\fix{Un angle extrême bloquait le calcul}
+{La normalisation d'un angle tournait en boucle : environ 6~millions de tours pour une valeur extrême, soit 14,6~ms sur mon PC et probablement plusieurs secondes sur la carte.}
+{Le calcul est direct et de durée constante. Deux fonctions voisines corrigeaient l'angle une seule fois ; elles sont aussi réparées (avant : 9\,639$^\circ$ pour un vent de 9\,999$^\circ$).}
+
+\fix{Des données radio prises pour argent comptant}
+{Le vent reçu n'était pas contrôlé, et une trame tronquée donnait un waypoint en (0,0), très loin de la zone d'essai, vers lequel le bateau naviguait sans erreur.}
+{Le vent est vérifié et ramené entre 0 et 360$^\circ$. Les waypoints sont contrôlés (latitude, longitude, rejet de (0,0)) et la mission est acceptée en entier ou refusée en entier.}
+
+\fix{L'état de navigation survivait au mode Manuel}
+{Après un passage en Manuel, les repères du couloir et la phase d'anti-empannage restaient en mémoire.}
+{Ils sont remis à zéro en quittant le mode Automatique. Le décalage appris du safran est conservé, car il dépend du matériel.}
+
+\fix{Un plafond de puissance trop haut}
+{Le régime automatique pouvait monter à 2000\,\textmu s (pleine puissance).}
+{Il est plafonné à 1850\,\textmu s, la limite prévue pour l'autonomie.}
+
+% ================= 4 =================
+\section{Le point ouvert : la course du safran}
+
+En relisant le code, j'ai vu que la limite de $\pm 20^\circ$ que j'avais validée au banc le 4~juin, puis installée sur le
+bateau, n'existe plus. Le mode automatique autorise maintenant $\pm 110^\circ$.
+
+\begin{center}
+\begin{tikzpicture}[x=0.5cm]
+\draw[thick,color=mute](-11,0)--(11,0);
+\foreach \x in {-11,-9,-2,0,2,9,11}{\draw[color=mute](\x,-0.08)--(\x,0.08);}
+\draw[line width=7pt,color=good,opacity=0.85](-2,0.6)--(2,0.6);
+\draw[line width=7pt,color=warn,opacity=0.85](-9,1.25)--(9,1.25);
+\draw[line width=7pt,color=bad,opacity=0.85](-11,1.9)--(11,1.9);
+\node[font=\sffamily\scriptsize,anchor=west] at (2.4,0.6){$\pm 20^\circ$ : validé au banc (4 juin)};
+\node[font=\sffamily\scriptsize,anchor=west] at (9.4,1.25){$\pm 90^\circ$ : course notée};
+\node[font=\sffamily\scriptsize,anchor=south] at (0,2.3){$\pm 110^\circ$ : code actuel};
+\node[font=\sffamily\scriptsize,anchor=north,color=mute] at (-9,-0.15){$-90^\circ$};
+\node[font=\sffamily\scriptsize,anchor=north,color=mute] at (9,-0.15){$+90^\circ$};
+\node[font=\sffamily\scriptsize,anchor=north,color=mute] at (0,-0.15){$0^\circ$};
+\end{tikzpicture}
+\end{center}
+
+J'ai balayé 5\,184 géométries de navigation. Avec un réglage neutre, la commande ne dépasse jamais $90^\circ$
+(pire cas : $80,1^\circ$). Le danger apparaît quand le décalage appris est chargé, ce qui arrive naturellement, car il
+persiste d'un waypoint à l'autre.
+
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[barstyle,ylabel={Commandes (\%)},symbolic x coords={{$0^\circ$},{$+20^\circ$},{$+40^\circ$},{$-40^\circ$}},
+ xtick=data,xlabel={Décalage appris au départ},ymax=17,
+ legend style={font=\sffamily\scriptsize,at={(0.5,1.02)},anchor=south,legend columns=2,draw=none},
+ nodes near coords={\pgfmathprintnumber[fixed,precision=1]{\pgfplotspointmeta}},height=5.2cm,width=0.85\linewidth,bar width=15pt]
+\addplot[fill=warn!80,draw=none] coordinates {({$0^\circ$},0) ({$+20^\circ$},0) ({$+40^\circ$},10.4) ({$-40^\circ$},13.2)};
+\addplot[fill=bad!80,draw=none] coordinates {({$0^\circ$},0) ({$+20^\circ$},0) ({$+40^\circ$},0.7) ({$-40^\circ$},10.4)};
+\legend{Dépasse $90^\circ$,Bloqué à $110^\circ$}
+\end{axis}
+\end{tikzpicture}
+\end{center}
+
+\begin{alert}
+\textbf{Décision.} Je n'ai modifié aucune constante d'actionneur. Savoir si $90^\circ$ ou $110^\circ$ est une butée
+mécanique du winch ne se tranche pas en logiciel : il faut le mesurer au banc. J'ai en revanche corrigé la documentation,
+qui annonçait encore $\pm 20^\circ$ à trois endroits.
+\end{alert}
+
+% ================= 5 =================
+\section{Le simulateur}
+
+Le simulateur donnait la même valeur au cap du bateau et à sa route mesurée par le GPS. Or c'est justement l'écart
+entre les deux, causé par le courant et la dérive, que le bateau ne peut pas détecter sans compas. « Six scénarios sur
+six réussissent » ne disait donc presque rien du risque principal.
+
+\begin{center}
+\begin{tikzpicture}
+\begin{scope}
+\node[font=\sffamily\bfseries\footnotesize] at (1.9,2.7){Avant : cap = route};
+\draw[-{Stealth},line width=2pt,color=accent](0,0)--(3.6,1.8);
+\node[font=\sffamily\scriptsize,anchor=south east] at (3.7,1.9){cap et route};
+\end{scope}
+\begin{scope}[xshift=7cm]
+\node[font=\sffamily\bfseries\footnotesize] at (2.2,2.7){Après : cap $\neq$ route};
+\draw[-{Stealth},line width=2pt,color=accent](0,0)--(2.6,1.3);
+\draw[-{Stealth},line width=2pt,color=warn](2.6,1.3)--(4.3,0.5);
+\draw[-{Stealth},line width=2.4pt,color=bad,dashed](0,0)--(4.3,0.5);
+\node[font=\sffamily\scriptsize,color=accent,anchor=south east] at (2.4,1.4){cap};
+\node[font=\sffamily\scriptsize,color=warn,anchor=south west] at (3.4,1.1){courant, dérive};
+\node[font=\sffamily\scriptsize,color=bad,anchor=north] at (2.4,0.05){route mesurée par le GPS};
+\end{scope}
+\end{tikzpicture}
+\end{center}
+
+J'ai ajouté le courant et la dérive sous le vent, un vent imposé au choix et une option qui va chercher la prévision de
+vent réelle. Sans option, les résultats sont identiques à avant : le scénario~6 donne toujours 688~s. Le simulateur
+renvoie maintenant un résultat de réussite ou d'échec, ce qui en fait un test de non-régression.
+
+\noindent
+\begin{minipage}[t]{0.485\linewidth}
+\begin{info}\textbf{Corrections d'isolement}\\\small Les six scénarios partageaient un état de navigation et
+n'étaient pas indépendants. Chacun a maintenant le sien. Le choix d'un scénario par son numéro fonctionne, et les
+fichiers de compilation sont à jour.\end{info}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.485\linewidth}
+\begin{info}\textbf{Nouvelles options}\\\small Courant (vitesse et direction), dérive, vent imposé (direction et
+vitesse) et prévision réelle (Windy).\end{info}
+\end{minipage}
+
+\begin{caution}
+\textbf{Windy : pas encore opérationnel.} La prévision est bien demandée, mais Windy répond « clé invalide ». Il faut
+sans doute une clé de type \emph{Point Forecast}. La conversion des données de vent a été vérifiée avec une fausse
+réponse.
+\end{caution}
+
+% ================= 6 =================
+\section{Le harnais adverse}
+
+Ce banc fait tourner la vraie navigation avec des perturbations que le simulateur ignorait. J'ai constaté que les
+chiffres publiés ne se reproduisaient pas, avec 9 à 13 points d'écart sur du code déterministe, et que le tirage
+aléatoire changeait à chaque valeur testée. Après correction, j'ai refait les 200 missions par point et recalculé.
+
+\begin{center}
+\begin{minipage}{0.48\linewidth}
+\begin{tikzpicture}
+\begin{axis}[barstyle,ylabel={Missions réussies (\%)},symbolic x coords={{$0$},{$0,25$ m/s}},xtick=data,
+ xlabel={Courant},ymax=92,height=5cm,width=\linewidth,bar width=22pt]
+\addplot[fill=accent!80,draw=none] coordinates {({$0$},73.5) ({$0,25$ m/s},25.5)};
+\end{axis}
+\end{tikzpicture}
+\end{minipage}\hfill
+\begin{minipage}{0.48\linewidth}
+\begin{tikzpicture}
+\begin{axis}[barstyle,symbolic x coords={{$0^\circ$},{$10^\circ$},{$20^\circ$}},xtick=data,
+ xlabel={Erreur sur la direction du vent},ymax=92,height=5cm,width=\linewidth,bar width=18pt]
+\addplot[fill=accent!80,draw=none] coordinates {({$0^\circ$},75.5) ({$10^\circ$},67.5) ({$20^\circ$},49.0)};
+\end{axis}
+\end{tikzpicture}
+\end{minipage}
+\end{center}
+
+\noindent
+\begin{minipage}[t]{0.32\linewidth}
+\begin{ok}\sffamily\small\textbf{Solide}\\Le courant et l'erreur de vent font chuter la convergence.\end{ok}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.32\linewidth}
+\begin{info}\sffamily\small\textbf{Sans effet}\\La vitesse du winch ne change rien de mesurable.\end{info}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.32\linewidth}
+\begin{caution}\sffamily\small\textbf{Non concluant}\\Le bruit GPS : l'ancien balayage ne permet pas de conclure.\end{caution}
+\end{minipage}
+
+J'ai aussi corrigé un plantage lorsque le fichier de résultats n'est pas inscriptible, et régénéré le document de résultats
+avec le nombre de missions et les intervalles de confiance.
+
+% ================= 7 =================
+\section{L'interface (IHM)}
+
+Chaque maillon de la chaîne entre le bateau et l'écran de l'opérateur avait un défaut. Les pastilles indiquent où j'ai
+agi.
+
+\begin{center}
+\begin{tikzpicture}[node distance=6mm]
+\node[blk,text width=1.9cm] (b) {\textbf{Bateau}};
+\node[blk,text width=1.9cm,right=of b] (t) {\textbf{Émetteur} LoRa};
+\node[blk,text width=2.2cm,right=of t] (s) {\textbf{Liaison série}};
+\node[blk,text width=2.2cm,right=of s] (m) {\textbf{Base de données}};
+\node[blk,text width=1.9cm,right=of m] (w) {\textbf{Carte web}};
+\draw[arr](b)--(t);\draw[arr](t)--(s);\draw[arr](s)--(m);\draw[arr](m)--(w);
+\node[tagok,above=1mm of s.north east]{1};
+\node[tagok,above=1mm of m.north east]{2};
+\node[tagok,above=1mm of w.north east]{3};
+\end{tikzpicture}
+\end{center}
+
+\noindent
+\begin{minipage}[t]{0.32\linewidth}
+\begin{ok}\sffamily\small\textbf{1. Trames perdues}\\Une trame coupée entre deux lectures était rejetée en entier. Elle est maintenant reconstituée.\end{ok}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.32\linewidth}
+\begin{ok}\sffamily\small\textbf{2. Ordre et accès}\\Les commandes partent dans l'ordre d'arrivée (un Stop ne perd plus contre un Navigate). La base n'est plus ouverte à tout le réseau.\end{ok}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.32\linewidth}
+\begin{ok}\sffamily\small\textbf{3. Vérifications}\\Une route avec un point invalide est refusée en entier. La prévision de vent est affichée à l'opérateur, jamais envoyée toute seule.\end{ok}
+\end{minipage}
+
+% ================= 8 =================
+\section{Les tests}
+
+\noindent
+\begin{minipage}{0.24\linewidth}\kpi{4/4}{tests du firmware}{good}\end{minipage}\hfill
+\begin{minipage}{0.24\linewidth}\kpi{61}{tests de l'interface}{good}\end{minipage}\hfill
+\begin{minipage}{0.24\linewidth}\kpi{20}{tests du banc GPS}{good}\end{minipage}\hfill
+\begin{minipage}{0.24\linewidth}\kpi{6/6}{scénarios de simulation}{good}\end{minipage}
+
 \vspace{0.4em}
-Auteur : Haitam Kilani
+Ces résultats étaient déjà verts avant mon travail, ce qui prouve seulement qu'ils étaient trop faibles. Pour le
+montrer, j'ai injecté volontairement une erreur (test de mutation) : en multipliant par 28 le gain de la propulsion, aucune
+suite ne réagissait.
 
-\section{Contexte}
+\begin{center}
+\begin{tikzpicture}[node distance=8mm]
+\node[blk,text width=2.6cm] (e) {\textbf{Erreur injectée}\\gain $\times$ 28};
+\node[blkbad,text width=3cm,right=of e] (av) {\textbf{Avant}\\4 suites vertes, l'erreur passe};
+\node[blkgood,text width=3cm,right=of av] (ap) {\textbf{Après}\\le test devient rouge};
+\draw[arr](e)--(av);\draw[arr](av)--(ap);
+\node[font=\sffamily\scriptsize,color=mute] at ($(av.east)+(0,0.85)$) {test renforcé};
+\end{tikzpicture}
+\end{center}
 
-Ce rapport couvre la période du 24 au 30 septembre 2026. Je n'ai fait aucun commit du 24 au 29 : tout le travail décrit ici date du 30 septembre et n'est pas encore committé (34 fichiers modifiés, environ 1 460 lignes ajoutées, plus 5 nouveaux fichiers). Je suis parti de l'état du 23 septembre, où tous les tests passaient, ce qui ne m'a pas paru suffisant pour dire que le projet était fiable : j'ai donc relu le firmware, la simulation, l'IHM et les tests en cherchant ce que les tests ne vérifiaient pas, et j'ai reproduit chaque défaut avant de le corriger.
+J'ai remplacé les vérifications trop faibles par des valeurs exactes et ajouté des tests sur les limites des angles et
+sur les 16~waypoints. La suite du banc GPS ne s'exécutait pas du tout (une erreur de structure l'arrêtait avant le premier
+test) : elle tourne maintenant.
 
-\section{Firmware}
+\begin{alert}
+\textbf{Encore sans aucun test :} le choix du mode de fonctionnement, l'écriture vers les servos et l'ESC, et la
+réception des commandes par radio.
+\end{alert}
 
-J'ai corrigé plusieurs défauts dans \code{main/src/}. Dans \code{navigation.h}, la normalisation d'angle se faisait avec une boucle \code{while} dont la durée dépend de la valeur d'entrée : avec une valeur extrême, j'ai mesuré près de 6 millions d'itérations (14,6 ms sur mon PC, donc probablement plusieurs secondes sur l'ESP32, ce qui bloquerait la boucle de commande). Je l'ai remplacée par un calcul en \code{fmod} en temps constant, et j'ai corrigé \code{nav_relativeAngle} et \code{nav_oppositeAngle}, qui ne corrigeaient l'angle qu'une seule fois et donnaient par exemple 9639\textdegree{} pour un vent à 9999\textdegree{}.
-
-Dans \code{LoRaComm.cpp}, les données reçues par radio n'étaient pas contrôlées. Le vent passait par \code{atoi} sans vérification de plage. Pour les waypoints, \code{atof} renvoie 0 sur une trame tronquée, ce qui créait un waypoint valide au large de l'Afrique. J'ai ajouté la validation du vent (valeur numérique, plage, normalisation dans [0, 360)) et celle des waypoints (bornes de latitude et de longitude, rejet du point (0,0), et mission acceptée en entier ou refusée en entier plutôt que tronquée).
-
-Dans \code{DroneApp.cpp}, l'état de navigation (ancres du couloir, phase d'anti-empannage, watchdog) n'était pas réinitialisé quand on quittait le mode Automatique pour le mode Manuel. Il l'est maintenant à cette transition, mais pas entre Failsafe et Automatique, qui suivent tous les deux la mission. Le trim appris du safran est conservé volontairement, car c'est une propriété du matériel. Enfin, dans \code{AutoController.cpp}, le plafond ESC automatique était \code{ESC_MAX_US} (2000 \textmu{}s) au lieu de \code{AUTO_ESC_MAX_US} (1850 \textmu{}s), et j'ai supprimé quelques avertissements de compilation (\code{MissionManager.cpp}).
-
-\section{Le point qui reste ouvert : la course du safran}
-
-En relisant le code, j'ai vu que la constante \code{ROTOR_AUTO_RANGE_DEG = 20\textdegree\ }, que j'avais validée au banc le 4 juin et flashée sur le bateau, n'existe plus. Le mode automatique autorise maintenant $\pm$110\textdegree{} (\code{ROTOR_AUTO_MIN_US} = 1399, \code{ROTOR_AUTO_MAX_US} = 1601), soit plus que les $\pm$90\textdegree{} que j'avais trouvés trop agressifs en juin et plus que la course de $\pm$90\textdegree{} notée dans \code{Calibration.h}. J'ai lancé un balayage de 5184 géométries sur la vraie machine à états : avec un trim à zéro la commande ne dépasse jamais 90\textdegree{} (pire cas 80,1\textdegree{}), mais avec un trim chargé à $\pm$40\textdegree{} elle dépasse 90\textdegree{} dans 10 à 13 \% des cas et sature à 110\textdegree{} dans jusqu'à 10 \% des cas.
-
-Je n'ai touché à aucune constante d'actionneur, parce que la butée réelle du winch ne se décide pas dans le code : il faut la mesurer au banc. C'est le prérequis le plus important avant un essai autonome.
-
-\section{Simulation}
-
-J'ai corrigé plusieurs problèmes du simulateur. Les six scénarios partageaient un même état de navigation statique (\code{nav_handleNavigation}) et n'étaient donc pas indépendants : chaque \code{SimulatedBoat} a maintenant son propre \code{NavState}, remis à zéro au départ. L'argument de scénario était ignoré (\code{./boat_simulator 3} lançait les six), il est maintenant pris en compte. Le Makefile ne surveillait pas \code{sim_html_export.hpp}, ce qui laissait des objets périmés, et le Makefile de \code{IHM/AutoBoat_Simulation} pointait vers un dossier inexistant.
-
-Le plus important : le simulateur ne modélisait ni courant ni dérive, et confondait route sur le fond et cap. Or le firmware pilote sur la route GPS, faute de compas, donc « 6 scénarios sur 6 convergent » ne disait rien du risque principal, le courant de marée. J'ai ajouté la vitesse et la route sur le fond (\code{courseOverGround}, \code{speedOverGround}), un courant uniforme (\code{./boat_simulator N vitesse cap}) et une dérive sous le vent (\code{SIM_LEEWAY_GAIN}, valeur de référence 0,040, illustrative et non mesurée). Sans option, rien ne change : le scénario 6 donne toujours 688 s. J'ai aussi fait renvoyer un code de sortie non nul en cas d'échec et un tableau PASS/FAIL, pour que le simulateur serve de test de non-régression.
-
-J'ai enfin ajouté un vent imposé (\code{SIM_WIND_DIR}, \code{SIM_WIND_SPEED}) et une cible \code{make run-windy} qui récupère la prévision réelle de Windy avec \code{simulation/fetch_wind.py}. Cette dernière ne marche pas encore : Windy répond « Invalid API key » avec la clé actuelle de \code{IHM/.env}, et il faut sans doute une clé de type Point Forecast. J'ai vérifié la conversion des composantes u/v en direction et vitesse avec une fausse réponse.
-
-\section{Harnais adverse}
-
-J'ai corrigé un plantage (SIGSEGV) quand le fichier CSV de sortie n'est pas inscriptible. J'ai aussi refait tourner le harnais avec 200 missions par valeur et j'ai constaté que les chiffres de \code{docs/ADVERSARIAL_FINDINGS.md} ne se reproduisaient pas, avec 9 à 13 points d'écart sur du code déterministe. Le générateur aléatoire était en outre réamorcé pour chaque valeur balayée, si bien que chaque point tirait des missions différentes ; il dépend maintenant seulement du nom du balayage, donc tous les points rejouent les mêmes missions. J'ai régénéré le document à partir d'une exécution réelle (deux passes identiques octet pour octet) en précisant N et les intervalles de confiance.
-
-Après recalcul, deux conclusions sont solides : le courant de marée (73,5 \% de convergence sans courant, 25,5 \% à 0,25 m/s) et l'erreur sur le vent (75,5 \% sans erreur, 49,0 \% à 20\textdegree{}). La vitesse du winch est sans effet mesurable. En revanche, on ne peut rien conclure sur le bruit GPS avec l'ancien balayage.
-
-\section{IHM}
-
-Côté serveur, j'ai ajouté le contrôle des coordonnées (route refusée en entier au premier point invalide, même règle dans \code{IHM_desktop}), des index MongoDB sur \code{status} et sur \code{origin} + \code{timestamp}, et un envoi des commandes dans l'ordre d'arrivée : sans tri, un Stop et un Navigate en attente en même temps pouvaient partir dans le mauvais ordre. \code{serial_link.py} (IHM web et desktop) perdait les trames coupées entre deux lectures ; le résidu est maintenant mis en mémoire jusqu'à la fin de ligne, avec une borne de 4 Ko et une remise à zéro à la reconnexion. \code{start_ihm.sh} et le lancement des processus n'exigent plus un \code{.venv} précis.
-
-J'ai restreint MongoDB à la boucle locale dans \code{docker-compose.yml} (il était exposé sur tout le réseau sans mot de passe), et ajouté \code{.env} au \code{.gitignore}. J'ai ajouté \code{GET /api/wind-forecast} (\code{IHM/app/windy.py}, avec ses tests) : elle affiche à l'opérateur la prévision de vent, mais n'envoie rien au bateau tant qu'il ne recopie pas la valeur dans \code{wind-command}.
-
-\section{Tests}
-
-Un test de mutation m'a montré deux tests trop faibles : en multipliant par 28 le gain de propulsion dans \code{AutoController.cpp}, les quatre suites restaient vertes. J'ai remplacé ces assertions par des valeurs exactes (1680 \textmu{}s pour 1 km/h sous la cible, plancher à 1600 \textmu{}s pour 0,1 km/h), fixé le bord de voile attendu quand le cap est inconnu, et ajouté des tests de bornes pour les angles (\code{nav_normalizeAngle}, \code{nav_relativeAngle}, \code{nav_oppositeAngle}) et pour la limite de 16 waypoints. J'ai activé \code{-Wall -Wextra} sur les cibles de test.
-
-J'ai aussi remis en état la suite \code{gps_diag/host_test}, où un \code{sys.exit()} au niveau du module empêchait pytest de collecter le moindre test. État actuel : ctest 4/4, tests IHM 61 réussis, \code{gps_diag} 20 réussis, et les six scénarios de simulation passent. Je ne teste toujours pas \code{DroneApp::controlTick}, \code{McpwmActuators} ni \code{LoRaComm}, qui restent à 0 \% de couverture.
-
-\section{Documentation}
-
-J'ai relu la documentation de référence du projet contre le code et corrigé les écarts : \code{MissionPlan} est limité à 16 waypoints et non 32, le couloir de navigation est de 30 m et non 100 m, la limitation de vitesse de variation ne s'applique qu'à l'ESC, la suite de tests n'est pas périmée (elle compile et passe), et le module \code{WindEstimator} n'existe pas (l'estimation est dans \code{AutoController}). J'ai aussi noté que \code{USE_OLD_NAVIGATION} ne compile plus s'il est activé, ce qui rend inutile le retour en arrière prévu, et que le commentaire de \code{BatteryAdc.h} parle encore de GPIO35 alors que le code lit GPIO36.
-
+% ================= 9 =================
 \section{Ce qui reste à faire}
 
-Le premier point est de mesurer au banc la course réelle du winch et de trancher entre $\pm$20\textdegree{}, $\pm$90\textdegree{} et $\pm$110\textdegree{} ; rien ne doit tourner en autonomie avant. Ensuite : obtenir une clé Windy valide pour \code{make run-windy}, écrire des tests pour \code{DroneApp::controlTick}, \code{McpwmActuators} et \code{LoRaComm}, mesurer l'erreur de vent tolérable en conditions réelles, vérifier sur l'ESP32 le blocage que j'ai estimé pour l'ancienne boucle d'angle, et committer tout ce travail.
+\begin{center}
+\begin{tikzpicture}
+\def\row#1#2#3#4{\node[draw=#4,fill=#4!8,rounded corners=2pt,thick,text width=14.4cm,inner sep=5pt,align=left,font=\small,anchor=north west] at (0,#1) {\textbf{#2}\ \ #3};}
+\row{0}{Prioritaire}{Mesurer au banc la course réelle du winch et trancher entre $\pm 20^\circ$, $\pm 90^\circ$ et $\pm 110^\circ$.}{bad}
+\row{-1.0}{À faire}{Obtenir une clé Windy valide et lancer le simulateur avec la prévision réelle.}{warn}
+\row{-2.0}{À faire}{Écrire des tests pour le choix du mode, l'écriture vers les servos et la réception radio.}{warn}
+\row{-3.0}{À faire}{Fixer l'erreur de vent tolérable et la vérifier en conditions réelles.}{warn}
+\row{-4.0}{À faire}{Mesurer sur la carte le temps de blocage de l'ancienne boucle d'angle (je ne l'ai qu'estimé).}{warn}
+\row{-5.0}{À faire}{Examiner les deux échecs restants du balayage de décalage du safran, puis committer tout ce travail.}{warn}
+\end{tikzpicture}
+\end{center}
 
-J'ai laissé de côté pour l'instant, en connaissance de cause, l'absence d'authentification de la liaison LoRa et de l'API web, qui acceptent des commandes sans identification. Sur un projet de terrain avec essais encadrés, le risque est limité ; passer les commandes en \code{POST} avec un secret partagé est prévu plus tard.
+\begin{info}
+\textbf{Risque accepté pour l'instant.} La radio et l'interface web n'exigent pas d'identification : toute commande bien
+formée est exécutée. Pour un projet de terrain aux essais encadrés, je le laisse de côté ; passer les commandes en
+requêtes protégées par un secret partagé est prévu plus tard.
+\end{info}
 
 \end{document}
